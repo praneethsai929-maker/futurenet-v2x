@@ -1,0 +1,24 @@
+# Build and temporary files
+build/
+cmake-cache/
+CMakeFiles/
+*.o
+*.dylib
+*.so
+*.a
+*.dSYM/
+*.swp
+*~
+.DS_Store
+
+# ns-3 traces and outputs
+*.pcap
+*.tr
+*.csv
+!test/data/*.csv
+
+# Large trace files (Guidelines 8.3 & 14.3: do not commit large generated FCD traces)
+*.fcd.xml
+fcd-large*.xml
+fcd-demo*.xml
+!test/data/fcd-small.xml
