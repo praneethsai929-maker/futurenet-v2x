@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fcd-export xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/fcd_file.xsd">
+    <timestep time="0.00">
+        <vehicle id="veh0" x="10.00" y="20.00" z="0.00" angle="90.00" type="passenger" speed="10.00" pos="10.00" lane="edge0_0" slope="0.00"/>
+    </timestep>
+    <timestep time="0.50">
+        <vehicle id="veh0" x="15.00" y="20.00" z="0.00" angle="90.00" type="passenger" speed="10.00" pos="15.00" lane="edge0_0" slope="0.00"/>
+        <vehicle id="veh1" x="50.00" y="30.00" z="0.00" angle="0.00" type="passenger" speed="15.00" pos="0.00" lane="edge1_0" slope="0.00"/>
+    </timestep>
+    <timestep time="1.00">
+        <vehicle id="veh0" x="20.00" y="20.00" z="0.00" angle="90.00" type="passenger" speed="10.00" pos="20.00" lane="edge0_0" slope="0.00"/>
+        <vehicle id="veh1" x="50.00" y="37.50" z="0.00" angle="0.00" type="passenger" speed="15.00" pos="7.50" lane="edge1_0" slope="0.00"/>
+        <vehicle id="veh2" x="100.00" y="100.00" z="0.00" angle="45.00" type="passenger" speed="20.00" pos="5.00" lane="edge2_0" slope="0.00"/>
+    </timestep>
+    <timestep time="1.50">
+        <vehicle id="veh0" x="25.00" y="20.00" z="0.00" angle="90.00" type="passenger" speed="10.00" pos="25.00" lane="edge0_0" slope="0.00"/>
+        <vehicle id="veh1" x="50.00" y="45.00" z="0.00" angle="0.00" type="passenger" speed="15.00" pos="15.00" lane="edge1_0" slope="0.00"/>
+        <vehicle id="veh2" x="107.07" y="107.07" z="0.00" angle="45.00" type="passenger" speed="20.00" pos="15.00" lane="edge2_0" slope="0.00"/>
+    </timestep>
+    <timestep time="2.00">
+        <vehicle id="veh0" x="30.00" y="20.00" z="0.00" angle="90.00" type="passenger" speed="10.00" pos="30.00" lane="edge0_0" slope="0.00"/>
+        <vehicle id="veh1" x="50.00" y="52.50" z="0.00" angle="0.00" type="passenger" speed="15.00" pos="22.50" lane="edge1_0" slope="0.00"/>
+    </timestep>
+</fcd-export>
