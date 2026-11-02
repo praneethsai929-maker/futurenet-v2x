@@ -43,7 +43,7 @@ ParseRsuPositions(const std::string& str)
 int
 main(int argc, char* argv[])
 {
-    std::string fcdTrace = "contrib/futurenet-v2x/test/data/fcd-small.xml";
+    std::string fcdTrace = "contrib/futurenet-v2x/examples/sumo-grid/grid-fcd.xml";
     uint32_t numRsus = 4;
     double simTimeSec = 5.0;
     std::string tracePrefix = "v2x-grid";

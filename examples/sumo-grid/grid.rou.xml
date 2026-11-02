@@ -2,8 +2,21 @@
 <routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
     <vType id="car" accel="2.6" decel="4.5" sigma="0.5" length="5" maxSpeed="15"/>
     <route id="route_0" edges="edge_0"/>
-    <vehicle id="veh0" type="car" route="route_0" depart="0.00"/>
-    <vehicle id="veh1" type="car" route="route_0" depart="2.00"/>
-    <vehicle id="veh2" type="car" route="route_0" depart="4.00"/>
+    <vehicle id="veh00" type="car" route="route_0" depart="0.00"/>
+    <vehicle id="veh01" type="car" route="route_0" depart="0.50"/>
+    <vehicle id="veh02" type="car" route="route_0" depart="1.00"/>
+    <vehicle id="veh03" type="car" route="route_0" depart="1.50"/>
+    <vehicle id="veh04" type="car" route="route_0" depart="2.00"/>
+    <vehicle id="veh05" type="car" route="route_0" depart="2.50"/>
+    <vehicle id="veh06" type="car" route="route_0" depart="3.00"/>
+    <vehicle id="veh07" type="car" route="route_0" depart="3.50"/>
+    <vehicle id="veh08" type="car" route="route_0" depart="4.00"/>
+    <vehicle id="veh09" type="car" route="route_0" depart="4.50"/>
+    <vehicle id="veh10" type="car" route="route_0" depart="5.00"/>
+    <vehicle id="veh11" type="car" route="route_0" depart="5.50"/>
+    <vehicle id="veh12" type="car" route="route_0" depart="6.00"/>
+    <vehicle id="veh13" type="car" route="route_0" depart="6.50"/>
+    <vehicle id="veh14" type="car" route="route_0" depart="7.00"/>
+    <vehicle id="veh15" type="car" route="route_0" depart="7.50"/>
 </routes>
 
