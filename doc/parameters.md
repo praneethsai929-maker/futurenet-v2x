@@ -14,6 +14,8 @@ Conforming to Section 5 of the SRS and Section 5 of the FutureNet Common Guideli
 | **`ApplicationStartJitter`** | `Time` | `100 ms` | `0` – `10 s` | ms / s | `V2xScenarioHelper` | Maximum uniform random start jitter to desynchronize packet broadcasts |
 | **`TxPower`** | `double` | `21.5 dBm` | `-30.0` – `50.0 dBm` | dBm | `V2xScenarioHelper` | Transmission power for Wi-Fi 802.11p interfaces |
 | **`RsuHeight`** | `double` | `5.0 m` | `0.0` – `100.0 m` | meters | `RsuPlacementHelper`<br>`V2xScenarioHelper` | Elevated mast height for roadside unit antenna placement |
+| **`V2IPort`** | `uint16_t` | `9999` | `1024` – `65535` | port # | `V2xScenarioHelper` | UDP port for unicast Vehicle-to-Infrastructure packets |
+| **`V2VPort`** | `uint16_t` | `9998` | `1024` – `65535` | port # | `V2xScenarioHelper` | UDP port for subnet broadcast Vehicle-to-Vehicle packets |
 | **`SubnetBase`** | `std::string` | `"10.1.0.0"` | Valid IPv4 prefix | IPv4 | `V2xScenarioHelper` | Base IPv4 network address assigned to V2X nodes |
 | **`SubnetMask`** | `std::string` | `"255.255.0.0"` | Valid IPv4 netmask | IPv4 mask | `V2xScenarioHelper` | IPv4 subnet mask assigned to V2X nodes |
 | **`TraCIPort`** | `uint16_t` | `8813` | `1024` – `65535` | port # | `tools/live_traci_adapter.py` | TCP socket port for TraCI co-simulation |

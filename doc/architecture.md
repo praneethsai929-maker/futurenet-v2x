@@ -59,9 +59,23 @@ Module `futurenet-v2x` provides an extensible, standard-compliant vehicular netw
 ### 2.4 `RsuSelectionPolicy` (Mechanism/Policy Split)
 - Pure virtual interface `RsuSelectionPolicy::Select(const RsuSelectionState& state)`.
 - Implements `NearestRsuSelectionPolicy` baseline.
-- Future modules (such as M10 Agent) can replace this with reinforcement learning or load-aware selection.
+- Downstream modules (such as M10 Agent) can inject reinforcement learning or load-balanced selection without modifying simulation core.
 
-### 2.5 Complexity Analysis of Nearest-RSU Association
+### 2.5 Network Architecture & Telemetry Ports
+- **V2I Unicast**: Transmitted to nearest RSU IP address on port `9999` (`V2xScenarioHelper::V2I_PORT`).
+- **V2V Broadcast**: Transmitted to subnet directed broadcast address on port `9998` (`V2xScenarioHelper::V2V_PORT`).
+- **Addressing**: IPv4 `10.1.0.0/16` with dynamically computed directed broadcast address.
+- **Delivery & Loss Telemetry**:
+  - Unicast V2I: $\text{PDR}_{\text{V2I}} = \frac{\text{Rx}_{\text{V2I}}}{\text{Tx}_{\text{V2I}}}$, with packet loss $\text{Lost} = \text{Tx}_{\text{V2I}} - \text{Rx}_{\text{V2I}}$.
+  - Sequence Gaps: Computed across all links using `SeqTsHeader` sequence numbers.
+
+### 2.6 Deliverable D4 Mapping Table
+| Target Requirement | Example Executable | Source Location | Description |
+| :--- | :--- | :--- | :--- |
+| **`example-basic`** | `example-grid` | `examples/example-grid.cc` | Baseline grid scenario (16 vehicles, 4 RSUs), grid/explicit RSU placement, periodic V2V/V2I, 3-tier CSVs. |
+| **`example-advanced`** | `example-map` | `examples/example-map.cc` | Ingestion of arbitrary maps/traces, coordinate scaling/offset, FlowMonitor XML export, controlled variation. |
+
+### 2.7 Complexity Analysis of Nearest-RSU Association
 In vehicular deployments, the number of active vehicles is $N$ and the number of deployed roadside units is $R$. The association policy evaluates the Euclidean distance between each active vehicle and available RSUs at each association interval:
 $$\mathcal{O}(N \times R)$$
 In typical road topologies, $R$ is fixed and small ($R \in [1, 20]$), making the per-tick complexity strictly linear in the active vehicle count: $\mathcal{O}(N)$. In benchmark tests with 100 vehicles and 4 RSUs, this scan completes in $< 15\,\mu\text{s}$ per evaluation step, avoiding unnecessary spatial partitioning tree (quadtree/BVH) memory and pointer maintenance overhead.

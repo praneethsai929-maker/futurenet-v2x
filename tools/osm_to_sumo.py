@@ -6,12 +6,30 @@ Provides automated conversion workflows and documented instructions using SUMO's
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 
+def find_netconvert():
+    """Locate netconvert binary in PATH, user Python bin, or SUMO_HOME."""
+    p = shutil.which("netconvert")
+    if p:
+        return p
+    user_bin = os.path.expanduser("~/Library/Python/3.14/bin/netconvert")
+    if os.path.exists(user_bin):
+        return user_bin
+    try:
+        import sumo
+        sumo_home = sumo.SUMO_HOME
+        bin_p = os.path.join(sumo_home, "bin", "netconvert")
+        if os.path.exists(bin_p):
+            return bin_p
+    except ImportError:
+        pass
+    return "netconvert"
+
 def convert_osm_to_sumo(osm_file, output_prefix):
     net_file = f"{output_prefix}.net.xml"
-    poly_file = f"{output_prefix}.poly.xml"
 
     print("==========================================================")
     print(" FutureNet M09: OpenStreetMap to SUMO Network Converter   ")
@@ -24,8 +42,9 @@ def convert_osm_to_sumo(osm_file, output_prefix):
         print(f"Error: OSM file '{osm_file}' does not exist.")
         return False
 
+    netconvert_bin = find_netconvert()
     cmd = [
-        "netconvert",
+        sys.executable if netconvert_bin.endswith(".py") else netconvert_bin,
         "--osm-files", osm_file,
         "-o", net_file,
         "--geometry.remove",
@@ -43,7 +62,7 @@ def convert_osm_to_sumo(osm_file, output_prefix):
             print(f"[Success] Generated SUMO road network: {net_file}")
             return True
         else:
-            print(f"[Notice] netconvert exited with: {res.stderr}")
+            print(f"[Notice] netconvert exited with: {res.stderr.strip()}")
             return False
     except FileNotFoundError:
         print("[Notice] 'netconvert' is not installed in system PATH.")
