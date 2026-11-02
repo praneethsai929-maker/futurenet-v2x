@@ -39,6 +39,13 @@ public:
     void Install(Ptr<SumoFcdParser> parser, Ptr<VehicleNodeMapper> mapper);
 
     /**
+     * @brief Install waypoints using Ptr<SumoFcdParser> and a NodeContainer.
+     * @param parser Pointer to SumoFcdParser.
+     * @param nodes NodeContainer of vehicles (must match parser vehicle count).
+     */
+    void Install(Ptr<SumoFcdParser> parser, NodeContainer nodes);
+
+    /**
      * @brief Simplified install method matching SRS Section 6 signature.
      * @param parser SumoFcdParser reference.
      * @param nodes NodeContainer of vehicles (must match parser vehicle count).
@@ -74,7 +81,7 @@ public:
      * @brief TraceSources for lifecycle and mobility.
      */
     typedef void (*VehicleLifecycleTracedCallback)(std::string vehicleId, uint32_t nodeId);
-    typedef void (*VehiclePositionTracedCallback)(std::string vehicleId, uint32_t nodeId, Vector position);
+    typedef void (*VehiclePositionTracedCallback)(std::string vehicleId, uint32_t nodeId, Vector position, double speedMps);
 
 private:
     Time m_mobilityStep{MilliSeconds(100)}; //!< Position sampling step (10ms to 2s)
@@ -90,7 +97,7 @@ private:
 
     TracedCallback<std::string, uint32_t> m_vehicleActivatedTrace;
     TracedCallback<std::string, uint32_t> m_vehicleDeactivatedTrace;
-    TracedCallback<std::string, uint32_t, Vector> m_vehiclePositionTrace;
+    TracedCallback<std::string, uint32_t, Vector, double> m_vehiclePositionTrace;
 
     void ScheduleLifecycleEvents();
     void OnVehicleActivated(std::string vehicleId, uint32_t nodeId);

@@ -4,25 +4,21 @@ if(HAVE_STDINT_H)
 endif()
 
 set(source_files
-    model/futurenet-v2x.cc
     model/sumo-fcd-parser.cc
     model/vehicle-node-mapper.cc
     model/v2x-mobility-importer.cc
     model/rsu-selection-policy.cc
-    helper/futurenet-v2x-helper.cc
     helper/rsu-placement-helper.cc
     helper/v2x-scenario-helper.cc
 )
 
 set(header_files
-    model/futurenet-v2x.h
     model/vehicle-waypoint.h
     model/v2x-common-types.h
     model/sumo-fcd-parser.h
     model/vehicle-node-mapper.h
     model/v2x-mobility-importer.h
     model/rsu-selection-policy.h
-    helper/futurenet-v2x-helper.h
     helper/rsu-placement-helper.h
     helper/v2x-scenario-helper.h
 )

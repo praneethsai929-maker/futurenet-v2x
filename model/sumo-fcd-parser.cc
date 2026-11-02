@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <set>
 #include <sstream>
 
 namespace ns3
@@ -97,125 +98,157 @@ SumoFcdParser::Load(const std::string& filename)
         return false;
     }
 
-    std::string line;
     double currentTimestepSeconds = -1.0;
     bool hasFcdRoot = false;
     uint64_t waypointCount = 0;
+    std::set<std::string> vehiclesInCurrentTimestep;
 
-    while (std::getline(file, line))
+    char c;
+    std::string tag;
+    while (file.get(c))
     {
-        // Trim leading whitespace
-        size_t first = line.find_first_not_of(" \t\r\n");
-        if (first == std::string::npos)
+        if (c == '<')
         {
-            continue;
-        }
-        std::string trimmed = line.substr(first);
-
-        if (trimmed.find("<fcd-export") != std::string::npos)
-        {
-            hasFcdRoot = true;
-            continue;
-        }
-
-        if (trimmed.rfind("<timestep", 0) == 0)
-        {
-            std::string timeStr = ExtractAttribute(trimmed, "time");
-            if (!timeStr.empty())
+            tag.clear();
+            while (file.get(c) && c != '>')
             {
-                try
+                tag += c;
+            }
+
+            size_t first = tag.find_first_not_of(" \t\r\n");
+            if (first == std::string::npos)
+            {
+                continue;
+            }
+            std::string trimmed = tag.substr(first);
+
+            // Skip XML comments or declarations
+            if (trimmed.rfind("?", 0) == 0 || trimmed.rfind("!--", 0) == 0)
+            {
+                continue;
+            }
+
+            if (trimmed.find("fcd-export") != std::string::npos)
+            {
+                hasFcdRoot = true;
+                continue;
+            }
+
+            if (trimmed.rfind("timestep", 0) == 0)
+            {
+                std::string timeStr = ExtractAttribute(trimmed, "time");
+                if (!timeStr.empty())
                 {
-                    currentTimestepSeconds = std::stod(timeStr);
+                    try
+                    {
+                        double newTime = std::stod(timeStr);
+                        if (currentTimestepSeconds >= 0.0 && newTime < currentTimestepSeconds)
+                        {
+                            m_lastError = "Timesteps out of chronological order: " + timeStr;
+                            NS_LOG_WARN(m_lastError);
+                            return false;
+                        }
+                        currentTimestepSeconds = newTime;
+                        vehiclesInCurrentTimestep.clear();
+                    }
+                    catch (...)
+                    {
+                        m_lastError = "Malformed timestep timestamp: " + timeStr;
+                        NS_LOG_WARN(m_lastError);
+                        return false;
+                    }
                 }
-                catch (...)
+                continue;
+            }
+
+            if (trimmed.rfind("vehicle", 0) == 0)
+            {
+                if (currentTimestepSeconds < 0.0)
                 {
-                    m_lastError = "Malformed timestep timestamp: " + timeStr;
+                    m_lastError = "Vehicle entry found outside of a valid timestep";
                     NS_LOG_WARN(m_lastError);
                     return false;
                 }
-            }
-            continue;
-        }
 
-        if (trimmed.rfind("<vehicle", 0) == 0)
-        {
-            if (currentTimestepSeconds < 0.0)
-            {
-                m_lastError = "Vehicle entry found outside of a valid timestep";
-                NS_LOG_WARN(m_lastError);
-                return false;
-            }
-
-            std::string id = ExtractAttribute(trimmed, "id");
-            if (id.empty())
-            {
-                m_lastError = "Vehicle entry missing mandatory 'id' attribute";
-                NS_LOG_WARN(m_lastError);
-                return false;
-            }
-
-            std::string xStr = ExtractAttribute(trimmed, "x");
-            std::string yStr = ExtractAttribute(trimmed, "y");
-            std::string zStr = ExtractAttribute(trimmed, "z");
-            std::string speedStr = ExtractAttribute(trimmed, "speed");
-            std::string angleStr = ExtractAttribute(trimmed, "angle");
-            std::string laneStr = ExtractAttribute(trimmed, "lane");
-            std::string posStr = ExtractAttribute(trimmed, "pos");
-
-            if (xStr.empty() || yStr.empty())
-            {
-                m_lastError = "Vehicle '" + id + "' missing x or y coordinates";
-                NS_LOG_WARN(m_lastError);
-                return false;
-            }
-
-            try
-            {
-                double rawX = std::stod(xStr);
-                double rawY = std::stod(yStr);
-                double rawZ = zStr.empty() ? 0.0 : std::stod(zStr);
-                double speed = speedStr.empty() ? 0.0 : std::stod(speedStr);
-                double angle = angleStr.empty() ? 0.0 : std::stod(angleStr);
-                double pos = posStr.empty() ? 0.0 : std::stod(posStr);
-
-                // Apply CoordinateScale and Offsets
-                double scaledX = (rawX * m_coordinateScale) + m_coordinateOffsetX;
-                double scaledY = (rawY * m_coordinateScale) + m_coordinateOffsetY;
-                double scaledZ = rawZ * m_coordinateScale;
-
-                Time ts = Seconds(currentTimestepSeconds);
-
-                VehicleWaypoint wp;
-                wp.timestamp = ts;
-                wp.position = Vector(scaledX, scaledY, scaledZ);
-                wp.speedMps = speed;
-                wp.angleDeg = angle;
-                wp.laneId = laneStr;
-                wp.posOnLane = pos;
-
-                m_trajectories[id].push_back(wp);
-
-                if (m_firstSeen.find(id) == m_firstSeen.end())
+                std::string id = ExtractAttribute(trimmed, "id");
+                if (id.empty())
                 {
-                    m_firstSeen[id] = ts;
+                    m_lastError = "Vehicle entry missing mandatory 'id' attribute";
+                    NS_LOG_WARN(m_lastError);
+                    return false;
                 }
-                m_lastSeen[id] = ts;
 
-                if (waypointCount == 0 || ts < m_minTime)
+                if (vehiclesInCurrentTimestep.find(id) != vehiclesInCurrentTimestep.end())
                 {
-                    m_minTime = ts;
+                    m_lastError = "Duplicate vehicle entry for '" + id + "' in timestep " + std::to_string(currentTimestepSeconds);
+                    NS_LOG_WARN(m_lastError);
+                    return false;
                 }
-                if (waypointCount == 0 || ts > m_maxTime)
+                vehiclesInCurrentTimestep.insert(id);
+
+                std::string xStr = ExtractAttribute(trimmed, "x");
+                std::string yStr = ExtractAttribute(trimmed, "y");
+                std::string zStr = ExtractAttribute(trimmed, "z");
+                std::string speedStr = ExtractAttribute(trimmed, "speed");
+                std::string angleStr = ExtractAttribute(trimmed, "angle");
+                std::string laneStr = ExtractAttribute(trimmed, "lane");
+                std::string posStr = ExtractAttribute(trimmed, "pos");
+
+                if (xStr.empty() || yStr.empty())
                 {
-                    m_maxTime = ts;
+                    m_lastError = "Vehicle '" + id + "' missing x or y coordinates";
+                    NS_LOG_WARN(m_lastError);
+                    return false;
                 }
-                waypointCount++;
-            }
-            catch (const std::exception& e)
-            {
-                m_lastError = "Failed to parse numeric attributes for vehicle " + id + ": " + e.what();
-                NS_LOG_WARN(m_lastError);
-                return false;
+
+                try
+                {
+                    double rawX = std::stod(xStr);
+                    double rawY = std::stod(yStr);
+                    double rawZ = zStr.empty() ? 0.0 : std::stod(zStr);
+                    double speed = speedStr.empty() ? 0.0 : std::stod(speedStr);
+                    double angle = angleStr.empty() ? 0.0 : std::stod(angleStr);
+                    double pos = posStr.empty() ? 0.0 : std::stod(posStr);
+
+                    // Apply CoordinateScale and Offsets
+                    double scaledX = (rawX * m_coordinateScale) + m_coordinateOffsetX;
+                    double scaledY = (rawY * m_coordinateScale) + m_coordinateOffsetY;
+                    double scaledZ = rawZ * m_coordinateScale;
+
+                    Time ts = Seconds(currentTimestepSeconds);
+
+                    VehicleWaypoint wp;
+                    wp.timestamp = ts;
+                    wp.position = Vector(scaledX, scaledY, scaledZ);
+                    wp.speedMps = speed;
+                    wp.angleDeg = angle;
+                    wp.laneId = laneStr;
+                    wp.posOnLane = pos;
+
+                    m_trajectories[id].push_back(wp);
+
+                    if (m_firstSeen.find(id) == m_firstSeen.end())
+                    {
+                        m_firstSeen[id] = ts;
+                    }
+                    m_lastSeen[id] = ts;
+
+                    if (waypointCount == 0 || ts < m_minTime)
+                    {
+                        m_minTime = ts;
+                    }
+                    if (waypointCount == 0 || ts > m_maxTime)
+                    {
+                        m_maxTime = ts;
+                    }
+                    waypointCount++;
+                }
+                catch (const std::exception& e)
+                {
+                    m_lastError = "Failed to parse numeric attributes for vehicle " + id + ": " + e.what();
+                    NS_LOG_WARN(m_lastError);
+                    return false;
+                }
             }
         }
     }

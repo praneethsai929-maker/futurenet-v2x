@@ -1,11 +1,14 @@
 #include "v2x-mobility-importer.h"
 
 #include "ns3/assert.h"
+#include "ns3/boolean.h"
 #include "ns3/log.h"
 #include "ns3/simulator.h"
 #include "ns3/nstime.h"
 #include "ns3/waypoint.h"
 #include "ns3/waypoint-mobility-model.h"
+
+#include <cmath>
 
 namespace ns3
 {
@@ -79,6 +82,7 @@ V2xMobilityImporter::Install(Ptr<SumoFcdParser> parser, Ptr<VehicleNodeMapper> m
         if (mobility == nullptr)
         {
             mobility = CreateObject<WaypointMobilityModel>();
+            mobility->SetAttribute("InitialPositionIsWaypoint", BooleanValue(true));
             node->AggregateObject(mobility);
         }
 
@@ -103,6 +107,25 @@ V2xMobilityImporter::Install(Ptr<SumoFcdParser> parser, Ptr<VehicleNodeMapper> m
 }
 
 void
+V2xMobilityImporter::Install(Ptr<SumoFcdParser> parser, NodeContainer nodes)
+{
+    NS_LOG_FUNCTION(this << parser << nodes.GetN());
+    NS_ASSERT_MSG(parser != nullptr, "SumoFcdParser cannot be null");
+    Ptr<VehicleNodeMapper> mapper = CreateObject<VehicleNodeMapper>();
+    std::vector<std::string> vehicleIds = parser->GetVehicleIds();
+
+    NS_ASSERT_MSG(nodes.GetN() >= vehicleIds.size(),
+                  "NodeContainer must have at least as many nodes as vehicles in FCD trace");
+
+    for (size_t i = 0; i < vehicleIds.size(); ++i)
+    {
+        mapper->Register(vehicleIds[i], nodes.Get(i));
+    }
+
+    Install(parser, mapper);
+}
+
+void
 V2xMobilityImporter::Install(const SumoFcdParser& parser, NodeContainer nodes)
 {
     NS_LOG_FUNCTION(this << nodes.GetN());
@@ -117,8 +140,42 @@ V2xMobilityImporter::Install(const SumoFcdParser& parser, NodeContainer nodes)
         mapper->Register(vehicleIds[i], nodes.Get(i));
     }
 
-    Ptr<SumoFcdParser> parserPtr = const_cast<SumoFcdParser*>(&parser);
-    Install(parserPtr, mapper);
+    m_mapper = mapper;
+    m_parser = nullptr;
+
+    for (const auto& vid : vehicleIds)
+    {
+        Ptr<Node> node = mapper->GetNode(vid);
+        if (node == nullptr)
+        {
+            continue;
+        }
+
+        Ptr<WaypointMobilityModel> mobility = node->GetObject<WaypointMobilityModel>();
+        if (mobility == nullptr)
+        {
+            mobility = CreateObject<WaypointMobilityModel>();
+            mobility->SetAttribute("InitialPositionIsWaypoint", BooleanValue(true));
+            node->AggregateObject(mobility);
+        }
+
+        std::vector<VehicleWaypoint> trajectory = parser.GetTrajectory(vid);
+        for (const auto& wp : trajectory)
+        {
+            mobility->AddWaypoint(Waypoint(wp.timestamp, wp.position));
+        }
+
+        m_firstSeen[vid] = parser.GetFirstSeen(vid);
+        m_lastSeen[vid] = parser.GetLastSeen(vid);
+        m_activeStatus[vid] = false;
+    }
+
+    ScheduleLifecycleEvents();
+
+    if (!m_sampleEvent.IsPending() && m_mobilityStep.IsStrictlyPositive())
+    {
+        m_sampleEvent = Simulator::Schedule(m_mobilityStep, &V2xMobilityImporter::SamplePositions, this);
+    }
 }
 
 void
@@ -179,7 +236,9 @@ V2xMobilityImporter::SamplePositions()
                     if (mob != nullptr)
                     {
                         Vector pos = mob->GetPosition();
-                        m_vehiclePositionTrace(vid, node->GetId(), pos);
+                        Vector vel = mob->GetVelocity();
+                        double speed = std::sqrt(vel.x * vel.x + vel.y * vel.y + vel.z * vel.z);
+                        m_vehiclePositionTrace(vid, node->GetId(), pos, speed);
                     }
                 }
             }
