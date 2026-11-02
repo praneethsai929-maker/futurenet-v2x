@@ -22,8 +22,22 @@ class RsuPlacementHelper : public Object
 public:
     static TypeId GetTypeId();
 
+    static constexpr double DEFAULT_RSU_HEIGHT_M = 5.0;
+
     RsuPlacementHelper();
     ~RsuPlacementHelper() override;
+
+    /**
+     * @brief Set the default mast height for deployed RSUs.
+     * @param heightM Mast height in meters.
+     */
+    void SetRsuHeight(double heightM);
+
+    /**
+     * @brief Get the default mast height for deployed RSUs.
+     * @return Mast height in meters.
+     */
+    double GetRsuHeight() const;
 
     /**
      * @brief Create a container of RSU nodes.
@@ -61,6 +75,9 @@ public:
      * @param junctions Vector of junction positions.
      */
     void InstallJunctionList(NodeContainer rsus, const std::vector<Vector>& junctions);
+
+private:
+    double m_rsuHeightM{DEFAULT_RSU_HEIGHT_M};
 };
 
 } // namespace ns3

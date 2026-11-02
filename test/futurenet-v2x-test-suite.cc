@@ -286,6 +286,106 @@ public:
 };
 
 // ===========================================================================
+// T2: Attribute bounds and validation
+// ===========================================================================
+class V2xTestT2AttributeBounds : public TestCase
+{
+public:
+    V2xTestT2AttributeBounds() : TestCase("T2: Attribute bounds and validation") {}
+    void DoRun() override
+    {
+        Ptr<SumoFcdParser> parser = CreateObject<SumoFcdParser>();
+        BooleanValue ok = parser->SetAttributeFailSafe("CoordinateScale", DoubleValue(2.5));
+        NS_TEST_ASSERT_MSG_EQ(ok.Get(), true, "Setting valid CoordinateScale must succeed");
+        BooleanValue badScale = parser->SetAttributeFailSafe("CoordinateScale", DoubleValue(-1.0));
+        NS_TEST_ASSERT_MSG_EQ(badScale.Get(), false, "Negative CoordinateScale must fail checker");
+
+        Ptr<V2xMobilityImporter> importer = CreateObject<V2xMobilityImporter>();
+        BooleanValue okStep = importer->SetAttributeFailSafe("MobilityStep", TimeValue(MilliSeconds(50)));
+        NS_TEST_ASSERT_MSG_EQ(okStep.Get(), true, "Setting valid MobilityStep (50ms) must succeed");
+        BooleanValue badStep = importer->SetAttributeFailSafe("MobilityStep", TimeValue(MilliSeconds(5)));
+        NS_TEST_ASSERT_MSG_EQ(badStep.Get(), false, "MobilityStep below 10ms must fail checker");
+
+        Ptr<V2xScenarioHelper> helper = CreateObject<V2xScenarioHelper>();
+        BooleanValue okBytes = helper->SetAttributeFailSafe("V2xMessageBytes", UintegerValue(500));
+        NS_TEST_ASSERT_MSG_EQ(okBytes.Get(), true, "Setting valid V2xMessageBytes (500) must succeed");
+        BooleanValue badBytes = helper->SetAttributeFailSafe("V2xMessageBytes", UintegerValue(10));
+        NS_TEST_ASSERT_MSG_EQ(badBytes.Get(), false, "V2xMessageBytes below 64 must fail checker");
+
+        BooleanValue okRsus = helper->SetAttributeFailSafe("NumRsus", UintegerValue(10));
+        NS_TEST_ASSERT_MSG_EQ(okRsus.Get(), true, "Setting valid NumRsus (10) must succeed");
+        BooleanValue badRsus = helper->SetAttributeFailSafe("NumRsus", UintegerValue(150));
+        NS_TEST_ASSERT_MSG_EQ(badRsus.Get(), false, "NumRsus above 100 must fail checker");
+    }
+};
+
+// ===========================================================================
+// T4: TraceSource transitions and callbacks
+// ===========================================================================
+class V2xTestT4TraceSources : public TestCase
+{
+public:
+    V2xTestT4TraceSources() : TestCase("T4: TraceSource transitions and callbacks") {}
+
+    uint32_t m_activatedCount{0};
+    uint32_t m_deactivatedCount{0};
+    uint32_t m_positionCount{0};
+    std::vector<std::string> m_activatedVehicles;
+
+    void OnActivated(std::string vehicleId, uint32_t nodeId)
+    {
+        m_activatedCount++;
+        m_activatedVehicles.push_back(vehicleId);
+    }
+
+    void OnDeactivated(std::string vehicleId, uint32_t nodeId)
+    {
+        m_deactivatedCount++;
+    }
+
+    void OnPosition(std::string vehicleId, uint32_t nodeId, Vector position, double speedMps)
+    {
+        m_positionCount++;
+    }
+
+    void DoRun() override
+    {
+        std::string testFile = CreateTempDirFilename("v2x-t4.xml");
+        CreateTestFcdXml(testFile);
+
+        Ptr<SumoFcdParser> parser = CreateObject<SumoFcdParser>();
+        parser->Load(testFile);
+
+        Ptr<VehicleNodeMapper> mapper = CreateObject<VehicleNodeMapper>();
+        std::vector<std::string> vids = parser->GetVehicleIds();
+        NodeContainer nodes;
+        nodes.Create(vids.size());
+        for (size_t i = 0; i < vids.size(); ++i)
+        {
+            mapper->Register(vids[i], nodes.Get(i));
+        }
+
+        Ptr<V2xMobilityImporter> importer = CreateObject<V2xMobilityImporter>();
+        importer->TraceConnectWithoutContext("VehicleActivated",
+            MakeCallback(&V2xTestT4TraceSources::OnActivated, this));
+        importer->TraceConnectWithoutContext("VehicleDeactivated",
+            MakeCallback(&V2xTestT4TraceSources::OnDeactivated, this));
+        importer->TraceConnectWithoutContext("VehiclePosition",
+            MakeCallback(&V2xTestT4TraceSources::OnPosition, this));
+
+        importer->Install(parser, mapper);
+
+        Simulator::Stop(Seconds(2.0));
+        Simulator::Run();
+        Simulator::Destroy();
+
+        NS_TEST_ASSERT_MSG_EQ(m_activatedCount, 3, "Expected 3 vehicle activations");
+        NS_TEST_ASSERT_MSG_GT(m_positionCount, 0, "Expected positive position sampling events");
+        NS_TEST_ASSERT_MSG_EQ(m_activatedVehicles[0], "veh0", "First activated vehicle must be veh0");
+    }
+};
+
+// ===========================================================================
 // T5: Deterministic and reproducibility test with AssignStreams
 // ===========================================================================
 class V2xTestT5Repeatability : public TestCase
@@ -294,14 +394,24 @@ public:
     V2xTestT5Repeatability() : TestCase("T5: Deterministic and reproducibility test with AssignStreams") {}
     void DoRun() override
     {
-        Ptr<V2xScenarioHelper> helper1 = CreateObject<V2xScenarioHelper>();
-        helper1->AssignStreams(42);
+        Ptr<UniformRandomVariable> rng1 = CreateObject<UniformRandomVariable>();
+        rng1->SetStream(42);
 
-        Ptr<V2xScenarioHelper> helper2 = CreateObject<V2xScenarioHelper>();
-        helper2->AssignStreams(42);
+        Ptr<UniformRandomVariable> rng2 = CreateObject<UniformRandomVariable>();
+        rng2->SetStream(42);
 
-        // Deterministic stream assignment check
-        NS_TEST_ASSERT_MSG_EQ(true, true, "Streams successfully initialized deterministically");
+        for (int i = 0; i < 5; ++i)
+        {
+            double v1 = rng1->GetValue(0.0, 1.0);
+            double v2 = rng2->GetValue(0.0, 1.0);
+            NS_TEST_ASSERT_MSG_EQ_TOL(v1, v2, 1e-12, "Streams with identical seeds must yield identical values");
+        }
+
+        Ptr<UniformRandomVariable> rng3 = CreateObject<UniformRandomVariable>();
+        rng3->SetStream(99);
+        double v3 = rng3->GetValue(0.0, 1.0);
+        double v1_next = rng1->GetValue(0.0, 1.0);
+        NS_TEST_ASSERT_MSG_NE(v1_next, v3, "Different stream seeds must produce different sequences");
     }
 };
 
@@ -333,11 +443,235 @@ public:
         std::string prefix = CreateTempDirFilename("v2x-t6-out");
         helper->EnableTracing(prefix);
 
+        Simulator::Stop(Seconds(1.5));
+        Simulator::Run();
+        Simulator::Destroy();
+        helper->CloseTracing();
+
+        // Verify generated network CSV
+        std::ifstream netCsv(prefix + "-network.csv");
+        NS_TEST_ASSERT_MSG_EQ(netCsv.is_open(), true, "Network CSV must be created");
+        std::string line;
+        uint32_t netLines = 0;
+        bool hasRxOrTx = false;
+        while (std::getline(netCsv, line))
+        {
+            netLines++;
+            if (line.find("RxV2I") != std::string::npos || line.find("TxV2I") != std::string::npos)
+            {
+                hasRxOrTx = true;
+            }
+        }
+        netCsv.close();
+        NS_TEST_ASSERT_MSG_GT(netLines, 1, "Network CSV must contain data rows");
+        NS_TEST_ASSERT_MSG_EQ(hasRxOrTx, true, "Network CSV must record real V2I traffic events");
+
+        // Verify generated mobility CSV
+        std::ifstream mobCsv(prefix + "-mobility.csv");
+        NS_TEST_ASSERT_MSG_EQ(mobCsv.is_open(), true, "Mobility CSV must be created");
+        uint32_t mobLines = 0;
+        while (std::getline(mobCsv, line))
+        {
+            mobLines++;
+        }
+        mobCsv.close();
+        NS_TEST_ASSERT_MSG_GT(mobLines, 1, "Mobility CSV must contain data rows");
+    }
+};
+
+// ===========================================================================
+// FR-04: Dynamic vehicle lifecycle (departure/arrival)
+// ===========================================================================
+class V2xTestFr04Lifecycle : public TestCase
+{
+public:
+    V2xTestFr04Lifecycle() : TestCase("FR-04: Dynamic vehicle lifecycle (departure and arrival)") {}
+    void DoRun() override
+    {
+        std::string testFile = CreateTempDirFilename("v2x-fr04.xml");
+        CreateTestFcdXml(testFile);
+
+        Ptr<SumoFcdParser> parser = CreateObject<SumoFcdParser>();
+        parser->Load(testFile);
+
+        Ptr<V2xMobilityImporter> importer = CreateObject<V2xMobilityImporter>();
+        NodeContainer nodes;
+        nodes.Create(parser->GetVehicleCount());
+        importer->Install(parser, nodes);
+
+        NS_TEST_ASSERT_MSG_EQ(importer->IsVehicleActive("veh0"), false, "veh0 must be inactive before start");
+        NS_TEST_ASSERT_MSG_EQ(importer->IsVehicleActive("veh1"), false, "veh1 must be inactive before start");
+
+        Simulator::Stop(Seconds(0.6));
+        Simulator::Run();
+
+        NS_TEST_ASSERT_MSG_EQ(importer->IsVehicleActive("veh0"), true, "veh0 must be active at t=0.6s");
+        NS_TEST_ASSERT_MSG_EQ(importer->IsVehicleActive("veh1"), true, "veh1 must be active at t=0.6s");
+        NS_TEST_ASSERT_MSG_EQ(importer->IsVehicleActive("veh2"), false, "veh2 must not be active at t=0.6s");
+
+        Simulator::Destroy();
+    }
+};
+
+// ===========================================================================
+// FR-08: Three-tier telemetry schema conformity
+// ===========================================================================
+class V2xTestFr08Telemetry : public TestCase
+{
+public:
+    V2xTestFr08Telemetry() : TestCase("FR-08: Three-tier telemetry schema conformity") {}
+    void DoRun() override
+    {
+        std::string testFile = CreateTempDirFilename("v2x-fr08.xml");
+        CreateTestFcdXml(testFile);
+
+        Ptr<V2xScenarioHelper> helper = CreateObject<V2xScenarioHelper>();
+        helper->LoadFcd(testFile);
+        helper->CreateVehicleNodes();
+        helper->CreateRsuNodes(2);
+        helper->InstallMobility();
+        helper->InstallExampleNetworking();
+
+        std::string prefix = CreateTempDirFilename("v2x-fr08-out");
+        helper->EnableTracing(prefix);
+
         Simulator::Stop(Seconds(1.0));
         Simulator::Run();
         Simulator::Destroy();
+        helper->CloseTracing();
 
-        NS_TEST_ASSERT_MSG_EQ(true, true, "Full scenario executed without runtime crashes");
+        std::ifstream mob(prefix + "-mobility.csv");
+        std::string header;
+        std::getline(mob, header);
+        NS_TEST_ASSERT_MSG_EQ(header, "time_s,vehicle_id,node_id,x_m,y_m,z_m,speed_mps,active",
+                              "Mobility CSV header must match Common Guidelines schema");
+
+        std::ifstream net(prefix + "-network.csv");
+        std::getline(net, header);
+        NS_TEST_ASSERT_MSG_EQ(header, "time_s,vehicle_id,peer_id,event,delay_ms,throughput_mbps,loss",
+                              "Network CSV header must match Common Guidelines schema");
+
+        std::ifstream com(prefix + "-common-events.csv");
+        std::getline(com, header);
+        NS_TEST_ASSERT_MSG_EQ(header, "time_s,module,event,node_id,peer_id,flow_id,value1,value2,unit,detail",
+                              "Common events CSV header must match Common Guidelines schema");
+    }
+};
+
+// ===========================================================================
+// Late-departing vehicle (InitialPositionIsWaypoint=true)
+// ===========================================================================
+class V2xTestLateDepartingVehicle : public TestCase
+{
+public:
+    V2xTestLateDepartingVehicle() : TestCase("Late-departing vehicle waypoint positioning") {}
+    void DoRun() override
+    {
+        std::string testFile = CreateTempDirFilename("v2x-late.xml");
+        std::ofstream out(testFile);
+        out << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            << "<fcd-export>\n"
+            << "  <timestep time=\"2.00\">\n"
+            << "    <vehicle id=\"veh_late\" x=\"200.00\" y=\"300.00\" z=\"0.00\" speed=\"10.00\" angle=\"0.00\" pos=\"0.00\" lane=\"lane0\"/>\n"
+            << "  </timestep>\n"
+            << "  <timestep time=\"3.00\">\n"
+            << "    <vehicle id=\"veh_late\" x=\"210.00\" y=\"300.00\" z=\"0.00\" speed=\"10.00\" angle=\"0.00\" pos=\"10.00\" lane=\"lane0\"/>\n"
+            << "  </timestep>\n"
+            << "</fcd-export>\n";
+        out.close();
+
+        Ptr<SumoFcdParser> parser = CreateObject<SumoFcdParser>();
+        parser->Load(testFile);
+
+        NodeContainer nodes;
+        nodes.Create(1);
+
+        Ptr<V2xMobilityImporter> importer = CreateObject<V2xMobilityImporter>();
+        importer->Install(parser, nodes);
+
+        Ptr<WaypointMobilityModel> mob = nodes.Get(0)->GetObject<WaypointMobilityModel>();
+        NS_TEST_ASSERT_MSG_NE(mob, nullptr, "Node must have WaypointMobilityModel");
+
+        // Prior to t=2.0s, initial position should already be the first waypoint (200, 300, 0), NOT (0,0,0)
+        Vector pos0 = mob->GetPosition();
+        NS_TEST_ASSERT_MSG_EQ_TOL(pos0.x, 200.0, 1e-3, "Initial X before departure must be first waypoint X");
+        NS_TEST_ASSERT_MSG_EQ_TOL(pos0.y, 300.0, 1e-3, "Initial Y before departure must be first waypoint Y");
+
+        Simulator::Stop(Seconds(2.5));
+        Simulator::Run();
+
+        Vector posMid = mob->GetPosition();
+        NS_TEST_ASSERT_MSG_EQ_TOL(posMid.x, 205.0, 1e-2, "Position at t=2.5s must be halfway between waypoints");
+        NS_TEST_ASSERT_MSG_EQ_TOL(posMid.y, 300.0, 1e-3, "Position Y at t=2.5s must remain 300.0");
+
+        Simulator::Destroy();
+    }
+};
+
+// ===========================================================================
+// RSU Placement Modes: Explicit Coordinates, Grid Spacing, Junction List
+// ===========================================================================
+class V2xTestRsuPlacementModes : public TestCase
+{
+public:
+    V2xTestRsuPlacementModes() : TestCase("RSU placement modes and geometry") {}
+    void DoRun() override
+    {
+        RsuPlacementHelper helper;
+        helper.SetRsuHeight(6.0);
+
+        // 1. Explicit Coordinates Mode
+        NodeContainer rsusExplicit = helper.CreateRsus(3);
+        std::vector<Vector> coords = {
+            Vector(10.0, 20.0, 6.0),
+            Vector(50.0, 60.0, 6.0),
+            Vector(90.0, 100.0, 6.0)
+        };
+        helper.InstallPositions(rsusExplicit, coords);
+        for (uint32_t i = 0; i < 3; ++i)
+        {
+            Ptr<ConstantPositionMobilityModel> mob = rsusExplicit.Get(i)->GetObject<ConstantPositionMobilityModel>();
+            NS_TEST_ASSERT_MSG_NE(mob, nullptr, "RSU must have ConstantPositionMobilityModel");
+            Vector p = mob->GetPosition();
+            NS_TEST_ASSERT_MSG_EQ_TOL(p.x, coords[i].x, 1e-4, "Explicit RSU X mismatch");
+            NS_TEST_ASSERT_MSG_EQ_TOL(p.y, coords[i].y, 1e-4, "Explicit RSU Y mismatch");
+            NS_TEST_ASSERT_MSG_EQ_TOL(p.z, coords[i].z, 1e-4, "Explicit RSU Z mismatch");
+        }
+
+        // 2. Regular Grid Spacing Mode (4 RSUs, start=(100, 200), delta=(50, 60), gridWidth=2)
+        NodeContainer rsusGrid = helper.CreateRsus(4);
+        helper.InstallGridSpacing(rsusGrid, 100.0, 200.0, 50.0, 60.0, 2);
+        std::vector<Vector> expectedGrid = {
+            Vector(100.0, 200.0, 6.0),
+            Vector(150.0, 200.0, 6.0),
+            Vector(100.0, 260.0, 6.0),
+            Vector(150.0, 260.0, 6.0)
+        };
+        for (uint32_t i = 0; i < 4; ++i)
+        {
+            Ptr<ConstantPositionMobilityModel> mob = rsusGrid.Get(i)->GetObject<ConstantPositionMobilityModel>();
+            NS_TEST_ASSERT_MSG_NE(mob, nullptr, "Grid RSU must have ConstantPositionMobilityModel");
+            Vector p = mob->GetPosition();
+            NS_TEST_ASSERT_MSG_EQ_TOL(p.x, expectedGrid[i].x, 1e-4, "Grid RSU X mismatch");
+            NS_TEST_ASSERT_MSG_EQ_TOL(p.y, expectedGrid[i].y, 1e-4, "Grid RSU Y mismatch");
+            NS_TEST_ASSERT_MSG_EQ_TOL(p.z, 6.0, 1e-4, "Grid RSU Z mismatch");
+        }
+
+        // 3. Junction List Mode
+        NodeContainer rsusJunc = helper.CreateRsus(2);
+        std::vector<Vector> junctions = {
+            Vector(250.0, 350.0, 6.0),
+            Vector(450.0, 550.0, 6.0)
+        };
+        helper.InstallJunctionList(rsusJunc, junctions);
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            Ptr<ConstantPositionMobilityModel> mob = rsusJunc.Get(i)->GetObject<ConstantPositionMobilityModel>();
+            NS_TEST_ASSERT_MSG_NE(mob, nullptr, "Junction RSU must have ConstantPositionMobilityModel");
+            Vector p = mob->GetPosition();
+            NS_TEST_ASSERT_MSG_EQ_TOL(p.x, junctions[i].x, 1e-4, "Junction RSU X mismatch");
+            NS_TEST_ASSERT_MSG_EQ_TOL(p.y, junctions[i].y, 1e-4, "Junction RSU Y mismatch");
+        }
     }
 };
 
@@ -356,11 +690,18 @@ public:
         AddTestCase(new V2xTestT05MissingMalformedInput, TestCase::Duration::QUICK);
         AddTestCase(new V2xTestT06DeterministicMapping, TestCase::Duration::QUICK);
         AddTestCase(new V2xTestT1ConstructionDefaults, TestCase::Duration::QUICK);
+        AddTestCase(new V2xTestT2AttributeBounds, TestCase::Duration::QUICK);
         AddTestCase(new V2xTestT3RsuSelectionPolicy, TestCase::Duration::QUICK);
+        AddTestCase(new V2xTestT4TraceSources, TestCase::Duration::QUICK);
         AddTestCase(new V2xTestT5Repeatability, TestCase::Duration::QUICK);
         AddTestCase(new V2xTestT6Integration, TestCase::Duration::QUICK);
+        AddTestCase(new V2xTestFr04Lifecycle, TestCase::Duration::QUICK);
+        AddTestCase(new V2xTestFr08Telemetry, TestCase::Duration::QUICK);
+        AddTestCase(new V2xTestLateDepartingVehicle, TestCase::Duration::QUICK);
+        AddTestCase(new V2xTestRsuPlacementModes, TestCase::Duration::QUICK);
     }
 };
 
 static FuturenetV2xTestSuite g_futurenetV2xTestSuite;
+
 

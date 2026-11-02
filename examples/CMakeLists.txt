@@ -1,7 +1,7 @@
 build_lib_example(
     NAME example-grid
     SOURCE_FILES example-grid.cc
-    LIBRARIES_TO_LINK ${libfuturenet-v2x}
+    LIBRARIES_TO_LINK ${libfuturenet-v2x} ${libflow-monitor}
 )
 
 build_lib_example(

@@ -1,15 +1,44 @@
 #include "ns3/command-line.h"
 #include "ns3/core-module.h"
 #include "ns3/flow-monitor-helper.h"
-#include "ns3/futurenet-v2x-helper.h"
 #include "ns3/simulator.h"
 #include "ns3/v2x-scenario-helper.h"
 
 #include <iostream>
+#include <sstream>
 
 using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE("ExampleMap");
+
+static std::vector<Vector>
+ParseRsuPositions(const std::string& str)
+{
+    std::vector<Vector> res;
+    if (str.empty())
+    {
+        return res;
+    }
+    std::stringstream ss(str);
+    std::string item;
+    while (std::getline(ss, item, ';'))
+    {
+        std::stringstream pss(item);
+        std::string xStr, yStr, zStr;
+        if (std::getline(pss, xStr, ',') && std::getline(pss, yStr, ','))
+        {
+            double x = std::stod(xStr);
+            double y = std::stod(yStr);
+            double z = 0.0;
+            if (std::getline(pss, zStr, ','))
+            {
+                z = std::stod(zStr);
+            }
+            res.push_back(Vector(x, y, z));
+        }
+    }
+    return res;
+}
 
 int
 main(int argc, char* argv[])
@@ -22,6 +51,12 @@ main(int argc, char* argv[])
     double scale = 1.0;
     double offsetX = 0.0;
     double offsetY = 0.0;
+    double v2xIntervalMs = 100.0;
+    uint32_t v2xBytes = 300;
+    double txPowerDbm = 21.5;
+    std::string rsuPositionsStr = "";
+    double gridSpacing = 200.0;
+    uint32_t gridWidth = 2;
 
     CommandLine cmd(__FILE__);
     cmd.AddValue("fcdTrace", "Path to arbitrary user-provided SUMO FCD trace file (AC-01)", fcdTrace);
@@ -31,6 +66,12 @@ main(int argc, char* argv[])
     cmd.AddValue("scale", "Coordinate scaling multiplier", scale);
     cmd.AddValue("offsetX", "Coordinate X offset in meters", offsetX);
     cmd.AddValue("offsetY", "Coordinate Y offset in meters", offsetY);
+    cmd.AddValue("v2xInterval", "V2X message interval in milliseconds", v2xIntervalMs);
+    cmd.AddValue("v2xBytes", "Payload size of periodic V2X messages in bytes", v2xBytes);
+    cmd.AddValue("txPower", "Wi-Fi TX transmission power in dBm", txPowerDbm);
+    cmd.AddValue("rsuPositions", "Semicolon-separated explicit RSU positions 'x,y;x,y...'", rsuPositionsStr);
+    cmd.AddValue("gridSpacing", "Spacing between RSUs in regular grid layout (meters)", gridSpacing);
+    cmd.AddValue("gridWidth", "Number of RSUs per row in grid layout", gridWidth);
     cmd.AddValue("tracePrefix", "Prefix for generated CSV files", tracePrefix);
     cmd.Parse(argc, argv);
 
@@ -40,6 +81,8 @@ main(int argc, char* argv[])
               << " FCD Trace File : " << fcdTrace << "\n"
               << " Num RSUs       : " << numRsus << "\n"
               << " Scale / Offset : " << scale << " / (" << offsetX << ", " << offsetY << ")\n"
+              << " V2X Interval   : " << v2xIntervalMs << " ms (" << v2xBytes << " bytes)\n"
+              << " TX Power       : " << txPowerDbm << " dBm\n"
               << " Mobility Step  : " << mobilityStepMs << " ms\n"
               << " Sim Time       : " << simTimeSec << " s\n"
               << "========================================================\n";
@@ -50,6 +93,20 @@ main(int argc, char* argv[])
     helper->SetAttribute("CoordinateScale", DoubleValue(scale));
     helper->SetAttribute("CoordinateOffsetX", DoubleValue(offsetX));
     helper->SetAttribute("CoordinateOffsetY", DoubleValue(offsetY));
+    helper->SetAttribute("V2xMessageInterval", TimeValue(MilliSeconds(v2xIntervalMs)));
+    helper->SetAttribute("V2xMessageBytes", UintegerValue(v2xBytes));
+    helper->SetAttribute("TxPower", DoubleValue(txPowerDbm));
+
+    std::vector<Vector> explicitPositions = ParseRsuPositions(rsuPositionsStr);
+    if (!explicitPositions.empty())
+    {
+        helper->SetRsuPositions(explicitPositions);
+        numRsus = explicitPositions.size();
+    }
+    else
+    {
+        helper->SetRsuGridPlacement(50.0, 50.0, gridSpacing, gridSpacing, gridWidth);
+    }
 
     bool loaded = helper->LoadFcd(fcdTrace);
     if (!loaded)

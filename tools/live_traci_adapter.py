@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """
-M09-FR-10 [Recommended]: Live SUMO stepping through TraCI via a Python adapter.
-Demonstrates synchronized vehicle stepping, reading coordinates and speeds,
+M09-FR-10 [Prototype]: Live SUMO stepping through TraCI via a Python adapter.
+Prototype adapter demonstrating synchronized vehicle stepping, reading coordinates and speeds,
 and decoupling simulation models from internal SUMO dependencies (CG-14, AC-06).
+NOTE: This is a standalone prototype demonstrating TraCI socket stepping; full bidirectional
+real-time physics feedback in ns-3 requires live IPC coupling.
 """
 
 import argparse
@@ -11,7 +13,7 @@ import time
 
 def run_traci_adapter(sumo_cfg, port=8813, step_duration=0.1, max_steps=50):
     print("==========================================================")
-    print(" FutureNet M09: Live TraCI Co-Simulation Adapter           ")
+    print(" FutureNet M09: Live TraCI Co-Simulation Adapter [PROTOTYPE]")
     print("==========================================================")
     print(f" SUMO Config : {sumo_cfg}")
     print(f" TraCI Port  : {port}")

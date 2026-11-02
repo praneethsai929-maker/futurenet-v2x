@@ -10,6 +10,7 @@
 #include "ns3/string.h"
 #include "ns3/uinteger.h"
 
+#include <cmath>
 #include <iomanip>
 
 namespace ns3
@@ -65,7 +66,27 @@ V2xScenarioHelper::GetTypeId()
                           "Maximum random startup jitter for applications",
                           TimeValue(MilliSeconds(100)),
                           MakeTimeAccessor(&V2xScenarioHelper::m_startJitterMax),
-                          MakeTimeChecker(Seconds(0), Seconds(10)));
+                          MakeTimeChecker(Seconds(0), Seconds(10)))
+            .AddAttribute("TxPower",
+                          "Wi-Fi Transmission Power in dBm",
+                          DoubleValue(21.5),
+                          MakeDoubleAccessor(&V2xScenarioHelper::m_txPowerDbm),
+                          MakeDoubleChecker<double>(-30.0, 50.0))
+            .AddAttribute("RsuHeight",
+                          "Height in meters for deployed RSUs",
+                          DoubleValue(DEFAULT_RSU_HEIGHT_M),
+                          MakeDoubleAccessor(&V2xScenarioHelper::m_rsuHeightM),
+                          MakeDoubleChecker<double>(0.0, 100.0))
+            .AddAttribute("SubnetBase",
+                          "IPv4 subnet base address",
+                          StringValue("10.1.0.0"),
+                          MakeStringAccessor(&V2xScenarioHelper::m_subnetBase),
+                          MakeStringChecker())
+            .AddAttribute("SubnetMask",
+                          "IPv4 subnet mask",
+                          StringValue("255.255.0.0"),
+                          MakeStringAccessor(&V2xScenarioHelper::m_subnetMask),
+                          MakeStringChecker());
     return tid;
 }
 
@@ -82,16 +103,64 @@ V2xScenarioHelper::V2xScenarioHelper()
 V2xScenarioHelper::~V2xScenarioHelper()
 {
     NS_LOG_FUNCTION(this);
+    for (auto& kv : m_sendV2iEvents)
+    {
+        Simulator::Cancel(kv.second);
+    }
+    m_sendV2iEvents.clear();
+
+    for (auto& kv : m_sendV2vEvents)
+    {
+        Simulator::Cancel(kv.second);
+    }
+    m_sendV2vEvents.clear();
+
+    for (auto& kv : m_vehicleV2iSockets)
+    {
+        if (kv.second)
+        {
+            kv.second->Close();
+        }
+    }
+    m_vehicleV2iSockets.clear();
+
+    for (auto& kv : m_vehicleV2vSockets)
+    {
+        if (kv.second)
+        {
+            kv.second->Close();
+        }
+    }
+    m_vehicleV2vSockets.clear();
+
+    for (auto& s : m_rsuSockets)
+    {
+        if (s)
+        {
+            s->Close();
+        }
+    }
+    m_rsuSockets.clear();
+
+    CloseTracing();
+}
+
+void
+V2xScenarioHelper::CloseTracing()
+{
     if (m_mobilityCsv.is_open())
     {
+        m_mobilityCsv.flush();
         m_mobilityCsv.close();
     }
     if (m_networkCsv.is_open())
     {
+        m_networkCsv.flush();
         m_networkCsv.close();
     }
     if (m_commonCsv.is_open())
     {
+        m_commonCsv.flush();
         m_commonCsv.close();
     }
 }
@@ -135,16 +204,54 @@ V2xScenarioHelper::CreateVehicleNodes()
     return m_vehicleNodes;
 }
 
+void
+V2xScenarioHelper::SetRsuPositions(const std::vector<Vector>& positions)
+{
+    m_rsuPositions = positions;
+}
+
+void
+V2xScenarioHelper::SetRsuGridPlacement(double startX, double startY, double deltaX, double deltaY, uint32_t gridWidth)
+{
+    m_rsuGridStartX = startX;
+    m_rsuGridStartY = startY;
+    m_rsuGridDeltaX = deltaX;
+    m_rsuGridDeltaY = deltaY;
+    m_rsuGridWidth = gridWidth;
+}
+
+void
+V2xScenarioHelper::SetRsuJunctionPlacement(const std::vector<Vector>& junctions)
+{
+    m_rsuJunctions = junctions;
+}
+
 NodeContainer
 V2xScenarioHelper::CreateRsuNodes(uint32_t numRsus)
 {
     NS_LOG_FUNCTION(this << numRsus);
     m_numRsus = numRsus;
     RsuPlacementHelper rsuHelper;
+    rsuHelper.SetRsuHeight(m_rsuHeightM);
     m_rsuNodes = rsuHelper.CreateRsus(numRsus);
 
-    // Place RSUs evenly across a default bounding area
-    rsuHelper.InstallGridSpacing(m_rsuNodes, 50.0, 50.0, 200.0, 200.0, 2);
+    if (!m_rsuPositions.empty())
+    {
+        rsuHelper.InstallPositions(m_rsuNodes, m_rsuPositions);
+    }
+    else if (!m_rsuJunctions.empty())
+    {
+        rsuHelper.InstallJunctionList(m_rsuNodes, m_rsuJunctions);
+    }
+    else
+    {
+        rsuHelper.InstallGridSpacing(m_rsuNodes,
+                                     m_rsuGridStartX,
+                                     m_rsuGridStartY,
+                                     m_rsuGridDeltaX,
+                                     m_rsuGridDeltaY,
+                                     m_rsuGridWidth);
+    }
     return m_rsuNodes;
 }
 
@@ -172,11 +279,12 @@ V2xScenarioHelper::InstallExampleNetworking()
 {
     NS_LOG_FUNCTION(this);
 
-    // Ad-hoc 802.11a standard wireless configuration
     WifiHelper wifi;
     wifi.SetStandard(WIFI_STANDARD_80211a);
 
     YansWifiPhyHelper wifiPhy;
+    wifiPhy.Set("TxPowerStart", DoubleValue(m_txPowerDbm));
+    wifiPhy.Set("TxPowerEnd", DoubleValue(m_txPowerDbm));
     YansWifiChannelHelper wifiChannel = YansWifiChannelHelper::Default();
     wifiPhy.SetChannel(wifiChannel.Create());
 
@@ -203,7 +311,7 @@ V2xScenarioHelper::InstallExampleNetworking()
     }
 
     Ipv4AddressHelper ipv4;
-    ipv4.SetBase("10.1.0.0", "255.255.0.0");
+    ipv4.SetBase(m_subnetBase.c_str(), m_subnetMask.c_str());
     if (m_vehicleDevices.GetN() > 0)
     {
         m_vehicleInterfaces = ipv4.Assign(m_vehicleDevices);
@@ -213,14 +321,15 @@ V2xScenarioHelper::InstallExampleNetworking()
         m_rsuInterfaces = ipv4.Assign(m_rsuDevices);
     }
 
-    // Install PacketSink on RSUs on port 9999
-    if (m_rsuNodes.GetN() > 0)
+    // Install UDP receiver sockets on each RSU on V2I_PORT (9999)
+    m_rsuSockets.clear();
+    for (uint32_t i = 0; i < m_rsuNodes.GetN(); ++i)
     {
-        uint16_t sinkPort = 9999;
-        Address sinkAddress(InetSocketAddress(Ipv4Address::GetAny(), sinkPort));
-        PacketSinkHelper packetSinkHelper("ns3::UdpSocketFactory", sinkAddress);
-        ApplicationContainer sinkApps = packetSinkHelper.Install(m_rsuNodes);
-        sinkApps.Start(Seconds(0.0));
+        Ptr<Socket> rsuSocket = Socket::CreateSocket(m_rsuNodes.Get(i), UdpSocketFactory::GetTypeId());
+        InetSocketAddress local = InetSocketAddress(Ipv4Address::GetAny(), V2I_PORT);
+        rsuSocket->Bind(local);
+        rsuSocket->SetRecvCallback(MakeCallback(&V2xScenarioHelper::ReceiveRsuPacket, this));
+        m_rsuSockets.push_back(rsuSocket);
     }
 }
 
@@ -302,18 +411,293 @@ V2xScenarioHelper::PeriodicRsuCheck()
 }
 
 void
-V2xScenarioHelper::LogMobilitySample(std::string vehicleId, uint32_t nodeId, Vector position)
+V2xScenarioHelper::SendV2iMessage(std::string vehicleId)
+{
+    if (!m_importer || !m_importer->IsVehicleActive(vehicleId))
+    {
+        return;
+    }
+
+    Ptr<Node> vNode = m_mapper ? m_mapper->GetNode(vehicleId) : nullptr;
+    if (!vNode || m_vehicleV2iSockets.find(vehicleId) == m_vehicleV2iSockets.end())
+    {
+        return;
+    }
+
+    Ptr<Socket> socket = m_vehicleV2iSockets[vehicleId];
+    if (!socket)
+    {
+        return;
+    }
+
+    uint32_t rsuId = UINT32_MAX;
+    if (m_currentRsuAssociation.find(vehicleId) != m_currentRsuAssociation.end())
+    {
+        rsuId = m_currentRsuAssociation[vehicleId];
+    }
+    else if (m_rsuNodes.GetN() > 0)
+    {
+        rsuId = m_rsuNodes.Get(0)->GetId();
+    }
+
+    if (rsuId != UINT32_MAX && m_rsuNodes.GetN() > 0 && m_rsuInterfaces.GetN() > 0)
+    {
+        for (uint32_t i = 0; i < m_rsuNodes.GetN(); ++i)
+        {
+            if (m_rsuNodes.Get(i)->GetId() == rsuId)
+            {
+                Ipv4Address rsuIp = m_rsuInterfaces.GetAddress(i);
+                Address destAddress = InetSocketAddress(rsuIp, V2I_PORT);
+
+                SeqTsHeader seqTs;
+                seqTs.SetSeq(m_v2iSeq[vehicleId]++);
+                uint32_t headerSize = seqTs.GetSerializedSize();
+                uint32_t payloadSize = (m_v2xMessageBytes > headerSize) ? (m_v2xMessageBytes - headerSize) : 0;
+                Ptr<Packet> packet = Create<Packet>(payloadSize);
+                packet->AddHeader(seqTs);
+
+                socket->SendTo(packet, 0, destAddress);
+
+                double now = Simulator::Now().GetSeconds();
+                uint32_t srcNodeId = vNode->GetId();
+                double dataRateMbps = (m_v2xMessageBytes * 8.0) / (m_v2xMessageInterval.GetSeconds() * 1e6);
+
+                if (m_tracingEnabled)
+                {
+                    if (m_networkCsv.is_open())
+                    {
+                        m_networkCsv << std::fixed << std::setprecision(3)
+                                     << now << "," << vehicleId << "," << rsuId << ","
+                                     << "TxV2I,0.0," << std::setprecision(4)
+                                     << dataRateMbps << ",0\n";
+                    }
+                    if (m_commonCsv.is_open())
+                    {
+                        m_commonCsv << std::fixed << std::setprecision(3)
+                                    << now << ",futurenet-v2x,TxV2I,"
+                                    << srcNodeId << "," << rsuId << ",1,"
+                                    << m_v2xMessageBytes << "," << std::setprecision(4)
+                                    << dataRateMbps << ",bytes," << vehicleId << "\n";
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    m_sendV2iEvents[vehicleId] = Simulator::Schedule(m_v2xMessageInterval,
+                                                     &V2xScenarioHelper::SendV2iMessage,
+                                                     this,
+                                                     vehicleId);
+}
+
+void
+V2xScenarioHelper::SendV2vMessage(std::string vehicleId)
+{
+    if (!m_importer || !m_importer->IsVehicleActive(vehicleId))
+    {
+        return;
+    }
+
+    Ptr<Node> vNode = m_mapper ? m_mapper->GetNode(vehicleId) : nullptr;
+    if (!vNode || m_vehicleV2vSockets.find(vehicleId) == m_vehicleV2vSockets.end())
+    {
+        return;
+    }
+
+    Ptr<Socket> socket = m_vehicleV2vSockets[vehicleId];
+    if (!socket)
+    {
+        return;
+    }
+
+    Address destAddress = InetSocketAddress(Ipv4Address("10.1.255.255"), V2V_PORT);
+
+    SeqTsHeader seqTs;
+    seqTs.SetSeq(m_v2vSeq[vehicleId]++);
+    uint32_t headerSize = seqTs.GetSerializedSize();
+    uint32_t payloadSize = (m_v2xMessageBytes > headerSize) ? (m_v2xMessageBytes - headerSize) : 0;
+    Ptr<Packet> packet = Create<Packet>(payloadSize);
+    packet->AddHeader(seqTs);
+
+    socket->SendTo(packet, 0, destAddress);
+
+    double now = Simulator::Now().GetSeconds();
+    uint32_t srcNodeId = vNode->GetId();
+    double dataRateMbps = (m_v2xMessageBytes * 8.0) / (m_v2xMessageInterval.GetSeconds() * 1e6);
+
+    if (m_tracingEnabled)
+    {
+        if (m_networkCsv.is_open())
+        {
+            m_networkCsv << std::fixed << std::setprecision(3)
+                         << now << "," << vehicleId << ",0,"
+                         << "TxV2V,0.0," << std::setprecision(4)
+                         << dataRateMbps << ",0\n";
+        }
+        if (m_commonCsv.is_open())
+        {
+            m_commonCsv << std::fixed << std::setprecision(3)
+                        << now << ",futurenet-v2x,TxV2V,"
+                        << srcNodeId << ",0,2,"
+                        << m_v2xMessageBytes << "," << std::setprecision(4)
+                        << dataRateMbps << ",bytes," << vehicleId << "\n";
+        }
+    }
+
+    m_sendV2vEvents[vehicleId] = Simulator::Schedule(m_v2xMessageInterval,
+                                                     &V2xScenarioHelper::SendV2vMessage,
+                                                     this,
+                                                     vehicleId);
+}
+
+void
+V2xScenarioHelper::ReceiveRsuPacket(Ptr<Socket> socket)
+{
+    Ptr<Packet> packet;
+    Address from;
+    while ((packet = socket->RecvFrom(from)))
+    {
+        SeqTsHeader seqTs;
+        if (packet->RemoveHeader(seqTs) > 0)
+        {
+            Time txTime = seqTs.GetTs();
+            Time delay = Simulator::Now() - txTime;
+            double delayMs = delay.GetSeconds() * 1000.0;
+
+            uint32_t rsuNodeId = socket->GetNode()->GetId();
+            InetSocketAddress inetFrom = InetSocketAddress::ConvertFrom(from);
+            Ipv4Address senderIp = inetFrom.GetIpv4();
+
+            std::string vehicleId = "unknown";
+            uint32_t senderNodeId = 0;
+            for (uint32_t i = 0; i < m_vehicleInterfaces.GetN(); ++i)
+            {
+                if (m_vehicleInterfaces.GetAddress(i) == senderIp)
+                {
+                    if (i < m_vehicleNodes.GetN())
+                    {
+                        senderNodeId = m_vehicleNodes.Get(i)->GetId();
+                        if (m_mapper)
+                        {
+                            vehicleId = m_mapper->GetVehicleId(senderNodeId);
+                        }
+                    }
+                    break;
+                }
+            }
+
+            double now = Simulator::Now().GetSeconds();
+            double throughputMbps = ((packet->GetSize() + seqTs.GetSerializedSize()) * 8.0) /
+                                    (m_v2xMessageInterval.GetSeconds() * 1e6);
+
+            if (m_tracingEnabled)
+            {
+                if (m_networkCsv.is_open())
+                {
+                    m_networkCsv << std::fixed << std::setprecision(3)
+                                 << now << "," << vehicleId << "," << rsuNodeId << ","
+                                 << "RxV2I," << std::setprecision(2) << delayMs << ","
+                                 << std::setprecision(4) << throughputMbps << ",0\n";
+                }
+                if (m_commonCsv.is_open())
+                {
+                    m_commonCsv << std::fixed << std::setprecision(3)
+                                << now << ",futurenet-v2x,RxV2I,"
+                                << senderNodeId << "," << rsuNodeId << ",1,"
+                                << std::setprecision(2) << delayMs << ","
+                                << std::setprecision(4) << throughputMbps << ",ms,"
+                                << vehicleId << "\n";
+                }
+            }
+        }
+    }
+}
+
+void
+V2xScenarioHelper::ReceiveVehicleV2vPacket(Ptr<Socket> socket)
+{
+    Ptr<Packet> packet;
+    Address from;
+    while ((packet = socket->RecvFrom(from)))
+    {
+        SeqTsHeader seqTs;
+        if (packet->RemoveHeader(seqTs) > 0)
+        {
+            Time txTime = seqTs.GetTs();
+            Time delay = Simulator::Now() - txTime;
+            double delayMs = delay.GetSeconds() * 1000.0;
+
+            uint32_t rxNodeId = socket->GetNode()->GetId();
+            InetSocketAddress inetFrom = InetSocketAddress::ConvertFrom(from);
+            Ipv4Address senderIp = inetFrom.GetIpv4();
+
+            std::string senderVehicleId = "unknown";
+            uint32_t senderNodeId = 0;
+            for (uint32_t i = 0; i < m_vehicleInterfaces.GetN(); ++i)
+            {
+                if (m_vehicleInterfaces.GetAddress(i) == senderIp)
+                {
+                    if (i < m_vehicleNodes.GetN())
+                    {
+                        senderNodeId = m_vehicleNodes.Get(i)->GetId();
+                        if (m_mapper)
+                        {
+                            senderVehicleId = m_mapper->GetVehicleId(senderNodeId);
+                        }
+                    }
+                    break;
+                }
+            }
+
+            if (senderNodeId == rxNodeId)
+            {
+                continue;
+            }
+
+            double now = Simulator::Now().GetSeconds();
+            double throughputMbps = ((packet->GetSize() + seqTs.GetSerializedSize()) * 8.0) /
+                                    (m_v2xMessageInterval.GetSeconds() * 1e6);
+
+            if (m_tracingEnabled)
+            {
+                if (m_networkCsv.is_open())
+                {
+                    m_networkCsv << std::fixed << std::setprecision(3)
+                                 << now << "," << senderVehicleId << "," << rxNodeId << ","
+                                 << "RxV2V," << std::setprecision(2) << delayMs << ","
+                                 << std::setprecision(4) << throughputMbps << ",0\n";
+                }
+                if (m_commonCsv.is_open())
+                {
+                    m_commonCsv << std::fixed << std::setprecision(3)
+                                << now << ",futurenet-v2x,RxV2V,"
+                                << senderNodeId << "," << rxNodeId << ",2,"
+                                << std::setprecision(2) << delayMs << ","
+                                << std::setprecision(4) << throughputMbps << ",ms,"
+                                << senderVehicleId << "\n";
+                }
+            }
+        }
+    }
+}
+
+void
+V2xScenarioHelper::LogMobilitySample(std::string vehicleId, uint32_t nodeId, Vector position, double speedMps)
 {
     if (m_tracingEnabled && m_mobilityCsv.is_open())
     {
         double now = Simulator::Now().GetSeconds();
+        bool active = m_importer ? m_importer->IsVehicleActive(vehicleId) : true;
         m_mobilityCsv << std::fixed << std::setprecision(3)
                       << now << ","
                       << vehicleId << ","
                       << nodeId << ","
                       << position.x << ","
                       << position.y << ","
-                      << position.z << ",0.0,1\n";
+                      << position.z << ","
+                      << std::fixed << std::setprecision(2) << speedMps << ","
+                      << (active ? 1 : 0) << "\n";
     }
 }
 
@@ -322,6 +706,7 @@ V2xScenarioHelper::LogVehicleActivated(std::string vehicleId, uint32_t nodeId)
 {
     double now = Simulator::Now().GetSeconds();
     Vector pos(0.0, 0.0, 0.0);
+    double speed = 0.0;
     if (m_mapper)
     {
         Ptr<Node> node = m_mapper->GetNode(vehicleId);
@@ -331,6 +716,8 @@ V2xScenarioHelper::LogVehicleActivated(std::string vehicleId, uint32_t nodeId)
             if (mob)
             {
                 pos = mob->GetPosition();
+                Vector vel = mob->GetVelocity();
+                speed = std::sqrt(vel.x * vel.x + vel.y * vel.y + vel.z * vel.z);
             }
         }
     }
@@ -347,7 +734,45 @@ V2xScenarioHelper::LogVehicleActivated(std::string vehicleId, uint32_t nodeId)
         {
             m_mobilityCsv << std::fixed << std::setprecision(3)
                           << now << "," << vehicleId << "," << nodeId << ","
-                          << pos.x << "," << pos.y << "," << pos.z << ",0.0,1\n";
+                          << pos.x << "," << pos.y << "," << pos.z << ","
+                          << std::fixed << std::setprecision(2) << speed << ",1\n";
+        }
+    }
+
+    // Schedule V2I and V2V traffic generation with jitter drawn from m_jitterRng
+    if (m_vehicleInterfaces.GetN() > 0)
+    {
+        Ptr<Node> vNode = m_mapper ? m_mapper->GetNode(vehicleId) : nullptr;
+        if (vNode)
+        {
+            // V2I Sender Socket
+            Ptr<Socket> v2iSocket = Socket::CreateSocket(vNode, UdpSocketFactory::GetTypeId());
+            v2iSocket->SetAllowBroadcast(true);
+            m_vehicleV2iSockets[vehicleId] = v2iSocket;
+            m_v2iSeq[vehicleId] = 0;
+
+            // V2V Sender & Receiver Socket on V2V_PORT (9998)
+            Ptr<Socket> v2vSocket = Socket::CreateSocket(vNode, UdpSocketFactory::GetTypeId());
+            v2vSocket->SetAllowBroadcast(true);
+            InetSocketAddress localV2v = InetSocketAddress(Ipv4Address::GetAny(), V2V_PORT);
+            v2vSocket->Bind(localV2v);
+            v2vSocket->SetRecvCallback(MakeCallback(&V2xScenarioHelper::ReceiveVehicleV2vPacket, this));
+            m_vehicleV2vSockets[vehicleId] = v2vSocket;
+            m_v2vSeq[vehicleId] = 0;
+
+            double maxJitterSec = m_startJitterMax.GetSeconds();
+            double jitterSecV2I = (maxJitterSec > 0.0) ? m_jitterRng->GetValue(0.0, maxJitterSec) : 0.0;
+            double jitterSecV2V = (maxJitterSec > 0.0) ? m_jitterRng->GetValue(0.0, maxJitterSec) : 0.0;
+
+            m_sendV2iEvents[vehicleId] = Simulator::Schedule(Seconds(jitterSecV2I),
+                                                             &V2xScenarioHelper::SendV2iMessage,
+                                                             this,
+                                                             vehicleId);
+
+            m_sendV2vEvents[vehicleId] = Simulator::Schedule(Seconds(jitterSecV2V),
+                                                             &V2xScenarioHelper::SendV2vMessage,
+                                                             this,
+                                                             vehicleId);
         }
     }
 }
@@ -355,8 +780,54 @@ V2xScenarioHelper::LogVehicleActivated(std::string vehicleId, uint32_t nodeId)
 void
 V2xScenarioHelper::LogVehicleDeactivated(std::string vehicleId, uint32_t nodeId)
 {
+    // Cancel pending send events
+    if (m_sendV2iEvents.find(vehicleId) != m_sendV2iEvents.end())
+    {
+        Simulator::Cancel(m_sendV2iEvents[vehicleId]);
+        m_sendV2iEvents.erase(vehicleId);
+    }
+    if (m_sendV2vEvents.find(vehicleId) != m_sendV2vEvents.end())
+    {
+        Simulator::Cancel(m_sendV2vEvents[vehicleId]);
+        m_sendV2vEvents.erase(vehicleId);
+    }
+
+    // Close sockets
+    if (m_vehicleV2iSockets.find(vehicleId) != m_vehicleV2iSockets.end())
+    {
+        m_vehicleV2iSockets[vehicleId]->Close();
+        m_vehicleV2iSockets.erase(vehicleId);
+    }
+    if (m_vehicleV2vSockets.find(vehicleId) != m_vehicleV2vSockets.end())
+    {
+        m_vehicleV2vSockets[vehicleId]->Close();
+        m_vehicleV2vSockets.erase(vehicleId);
+    }
+
+    // Turn off radio and stop applications on the deactivated node
+    if (m_mapper)
+    {
+        Ptr<Node> node = m_mapper->GetNode(vehicleId);
+        if (node)
+        {
+            for (uint32_t i = 0; i < node->GetNDevices(); ++i)
+            {
+                Ptr<WifiNetDevice> wifiDev = DynamicCast<WifiNetDevice>(node->GetDevice(i));
+                if (wifiDev && wifiDev->GetPhy())
+                {
+                    wifiDev->GetPhy()->SetOffMode();
+                }
+            }
+            for (uint32_t a = 0; a < node->GetNApplications(); ++a)
+            {
+                node->GetApplication(a)->SetStopTime(Simulator::Now());
+            }
+        }
+    }
+
     double now = Simulator::Now().GetSeconds();
     Vector pos(0.0, 0.0, 0.0);
+    double speed = 0.0;
     if (m_mapper)
     {
         Ptr<Node> node = m_mapper->GetNode(vehicleId);
@@ -366,6 +837,8 @@ V2xScenarioHelper::LogVehicleDeactivated(std::string vehicleId, uint32_t nodeId)
             if (mob)
             {
                 pos = mob->GetPosition();
+                Vector vel = mob->GetVelocity();
+                speed = std::sqrt(vel.x * vel.x + vel.y * vel.y + vel.z * vel.z);
             }
         }
     }
@@ -382,7 +855,8 @@ V2xScenarioHelper::LogVehicleDeactivated(std::string vehicleId, uint32_t nodeId)
         {
             m_mobilityCsv << std::fixed << std::setprecision(3)
                           << now << "," << vehicleId << "," << nodeId << ","
-                          << pos.x << "," << pos.y << "," << pos.z << ",0.0,0\n";
+                          << pos.x << "," << pos.y << "," << pos.z << ","
+                          << std::fixed << std::setprecision(2) << speed << ",0\n";
         }
     }
 }

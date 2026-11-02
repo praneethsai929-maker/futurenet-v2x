@@ -1,6 +1,7 @@
 #include "rsu-placement-helper.h"
 
 #include "ns3/constant-position-mobility-model.h"
+#include "ns3/double.h"
 #include "ns3/log.h"
 
 namespace ns3
@@ -16,7 +17,12 @@ RsuPlacementHelper::GetTypeId()
         TypeId("ns3::RsuPlacementHelper")
             .SetParent<Object>()
             .SetGroupName("FuturenetV2x")
-            .AddConstructor<RsuPlacementHelper>();
+            .AddConstructor<RsuPlacementHelper>()
+            .AddAttribute("RsuHeight",
+                          "Default mast height in meters for deployed RSUs",
+                          DoubleValue(DEFAULT_RSU_HEIGHT_M),
+                          MakeDoubleAccessor(&RsuPlacementHelper::m_rsuHeightM),
+                          MakeDoubleChecker<double>(0.0, 100.0));
     return tid;
 }
 
@@ -28,6 +34,18 @@ RsuPlacementHelper::RsuPlacementHelper()
 RsuPlacementHelper::~RsuPlacementHelper()
 {
     NS_LOG_FUNCTION(this);
+}
+
+void
+RsuPlacementHelper::SetRsuHeight(double heightM)
+{
+    m_rsuHeightM = heightM;
+}
+
+double
+RsuPlacementHelper::GetRsuHeight() const
+{
+    return m_rsuHeightM;
 }
 
 NodeContainer
@@ -82,7 +100,7 @@ RsuPlacementHelper::InstallGridSpacing(NodeContainer rsus,
         uint32_t row = i / gridWidth;
         double x = startX + col * deltaX;
         double y = startY + row * deltaY;
-        positions.emplace_back(x, y, 5.0); // 5m elevated mast height for RSU
+        positions.emplace_back(x, y, m_rsuHeightM); // Mast height for RSU
     }
 
     InstallPositions(rsus, positions);
