@@ -312,6 +312,7 @@ V2xScenarioHelper::InstallExampleNetworking()
 
     Ipv4AddressHelper ipv4;
     ipv4.SetBase(m_subnetBase.c_str(), m_subnetMask.c_str());
+    m_broadcastAddress = Ipv4Address(m_subnetBase.c_str()).GetSubnetDirectedBroadcast(Ipv4Mask(m_subnetMask.c_str()));
     if (m_vehicleDevices.GetN() > 0)
     {
         m_vehicleInterfaces = ipv4.Assign(m_vehicleDevices);
@@ -511,7 +512,7 @@ V2xScenarioHelper::SendV2vMessage(std::string vehicleId)
         return;
     }
 
-    Address destAddress = InetSocketAddress(Ipv4Address("10.1.255.255"), V2V_PORT);
+    Address destAddress = InetSocketAddress(m_broadcastAddress, V2V_PORT);
 
     SeqTsHeader seqTs;
     seqTs.SetSeq(m_v2vSeq[vehicleId]++);
@@ -591,6 +592,22 @@ V2xScenarioHelper::ReceiveRsuPacket(Ptr<Socket> socket)
             double throughputMbps = ((packet->GetSize() + seqTs.GetSerializedSize()) * 8.0) /
                                     (m_v2xMessageInterval.GetSeconds() * 1e6);
 
+            uint32_t currentSeq = seqTs.GetSeq();
+            auto linkKey = std::make_pair(senderNodeId, rsuNodeId);
+            uint32_t loss = 0;
+            if (m_hasRxSeq[linkKey])
+            {
+                if (currentSeq > m_lastRxSeq[linkKey] + 1)
+                {
+                    loss = currentSeq - (m_lastRxSeq[linkKey] + 1);
+                }
+            }
+            else
+            {
+                m_hasRxSeq[linkKey] = true;
+            }
+            m_lastRxSeq[linkKey] = currentSeq;
+
             if (m_tracingEnabled)
             {
                 if (m_networkCsv.is_open())
@@ -598,7 +615,7 @@ V2xScenarioHelper::ReceiveRsuPacket(Ptr<Socket> socket)
                     m_networkCsv << std::fixed << std::setprecision(3)
                                  << now << "," << vehicleId << "," << rsuNodeId << ","
                                  << "RxV2I," << std::setprecision(2) << delayMs << ","
-                                 << std::setprecision(4) << throughputMbps << ",0\n";
+                                 << std::setprecision(4) << throughputMbps << "," << loss << "\n";
                 }
                 if (m_commonCsv.is_open())
                 {
@@ -659,6 +676,22 @@ V2xScenarioHelper::ReceiveVehicleV2vPacket(Ptr<Socket> socket)
             double throughputMbps = ((packet->GetSize() + seqTs.GetSerializedSize()) * 8.0) /
                                     (m_v2xMessageInterval.GetSeconds() * 1e6);
 
+            uint32_t currentSeq = seqTs.GetSeq();
+            auto linkKey = std::make_pair(senderNodeId, rxNodeId);
+            uint32_t loss = 0;
+            if (m_hasRxSeq[linkKey])
+            {
+                if (currentSeq > m_lastRxSeq[linkKey] + 1)
+                {
+                    loss = currentSeq - (m_lastRxSeq[linkKey] + 1);
+                }
+            }
+            else
+            {
+                m_hasRxSeq[linkKey] = true;
+            }
+            m_lastRxSeq[linkKey] = currentSeq;
+
             if (m_tracingEnabled)
             {
                 if (m_networkCsv.is_open())
@@ -666,7 +699,7 @@ V2xScenarioHelper::ReceiveVehicleV2vPacket(Ptr<Socket> socket)
                     m_networkCsv << std::fixed << std::setprecision(3)
                                  << now << "," << senderVehicleId << "," << rxNodeId << ","
                                  << "RxV2V," << std::setprecision(2) << delayMs << ","
-                                 << std::setprecision(4) << throughputMbps << ",0\n";
+                                 << std::setprecision(4) << throughputMbps << "," << loss << "\n";
                 }
                 if (m_commonCsv.is_open())
                 {

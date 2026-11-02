@@ -189,6 +189,7 @@ private:
     double m_rsuHeightM{DEFAULT_RSU_HEIGHT_M};
     std::string m_subnetBase{"10.1.0.0"};
     std::string m_subnetMask{"255.255.0.0"};
+    Ipv4Address m_broadcastAddress;
 
     Ptr<SumoFcdParser> m_parser;
     Ptr<VehicleNodeMapper> m_mapper;
@@ -223,6 +224,8 @@ private:
     std::map<std::string, uint32_t> m_v2iSeq;
     std::map<std::string, uint32_t> m_v2vSeq;
     std::vector<Ptr<Socket>> m_rsuSockets;
+    std::map<std::pair<uint32_t, uint32_t>, uint32_t> m_lastRxSeq;
+    std::map<std::pair<uint32_t, uint32_t>, bool> m_hasRxSeq;
 
     // CSV File streams
     std::ofstream m_mobilityCsv;
