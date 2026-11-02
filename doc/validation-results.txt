@@ -1,10 +1,10 @@
 ==========================================================
- FutureNet M09 Multi-Criteria Validation Suite Run Log   
+ FutureNet M09 Multi-Criteria Validation Suite Run Log
 ==========================================================
- Timestamp    : 2026-11-02T13:00:57.070943
+ Timestamp    : 2026-11-02T13:11:24.381115
  ns-3 Version : 3.46.1
  SUMO Version : Eclipse SUMO sumo 1.28.0
- Git Commit   : 5f9b5d3082838375ca994bc2d5cf48dbf98d09db
+ Git Commit   : af416bd785aec79c94ee4b41793fb1418c4d94b6
  Run Number   : 1
  RNG Seed     : Default deterministic (AssignStreams tested)
 ==========================================================
@@ -12,20 +12,23 @@
 Command Line: ./ns3 run 'example-grid --fcdTrace=/tmp/fcd-demo-100.xml --numRsus=4 --simTime=10.0 --tracePrefix=val-out'
 100-Vehicle 4-RSU Demo Simulation Metrics:
   Total Packets Tx : 10516 (V2I=5258, V2V=5258)
-  Total Packets Rx : 29559 (V2I=1494, V2V=28065 fan-out)
-  V2I Delivery PDR : 28.41% (Lost packets = 3764)
-  Average Delay    : 0.56 ms
+  Total Packets Rx : 29529 (V2I=1492, V2V=28037 fan-out)
+  V2I Delivery PDR : 28.38% (Lost packets = 3766)
+  Average Delay    : 1.22 ms
   Average Throughp : 0.0240 Mbps
-  Total Seq Gaps   : 250
+  Total Seq Gaps   : 416
 Verified 2852 sampled points against SUMO ground truth.
 Maximum spatial discrepancy: 0.000000 m (Tolerance: < 0.01 m)
 >>> PASS: Validation V1 (Spatial Alignment)
 Verified continuous forward kinematics across 110/110 moving trajectories (112 total vehicles).
 >>> PASS: Validation V2 (Kinematic Trend)
 Verified: Mobility CSV is 100% BYTE-FOR-BYTE IDENTICAL across differing network configurations.
-Config 1 (100ms interval): Tx=2672 (V2I=1336, V2V=1336), Rx=4410 (V2I=400, V2V=4010), V2I PDR=29.94% (Lost=936), AvgDelay=0.54 ms, AvgThroughput=0.0240 Mbps, TotalLossGaps=0
-Config 2 (500ms interval): Tx=580 (V2I=290, V2V=290), Rx=964 (V2I=86, V2V=878), V2I PDR=29.66% (Lost=204), AvgDelay=0.59 ms, AvgThroughput=0.0048 Mbps, TotalLossGaps=0
+Config 1 (100ms interval): Tx=6896 (V2I=3448, V2V=3448), Rx=15901 (V2I=1020, V2V=14881), V2I PDR=29.58% (Lost=2428), AvgDelay=1.12 ms, AvgThroughput=0.0240 Mbps, TotalLossGaps=105
+Config 2 (500ms interval): Tx=1456 (V2I=728, V2V=728), Rx=3434 (V2I=220, V2V=3214), V2I PDR=30.22% (Lost=508), AvgDelay=3.29 ms, AvgThroughput=0.0048 Mbps, TotalLossGaps=6
 >>> PASS: Validation V3 (Controlled Variation & Network Decoupling)
+TxPower Sweep: 21.5 dBm -> PDR=29.94% (Rx=400/1336) vs 30.0 dBm -> PDR=72.31% (Rx=966/1336)
+Confirmed physical range loss model: increasing transmit power from 21.5 dBm to 30.0 dBm expands wireless range, increasing V2I PDR from 29.94% to 72.31% while mobility remains 100% identical.
+>>> PASS: Controlled Variation (TxPower / Range Sensitivity)
 Command Line: ./ns3 run 'example-grid --fcdTrace=/tmp/fcd-demo-100.xml --mobilityStep=10 --simTime=1.0 --tracePrefix=bound-step10'
 Verified: High-rate sampling (mobilityStep=10ms, 100Hz) generated 613 telemetry records safely.
 Command Line: ./ns3 run 'example-grid --fcdTrace=/tmp/fcd-demo-100.xml --mobilityStep=2000 --simTime=3.0 --tracePrefix=bound-step2000'
@@ -37,5 +40,5 @@ Verified: 100-vehicle scale boundary completed safely with 526 mobility records.
 >>> PASS: Boundary & Extreme Cases Validation
 
 ==========================================================
- ALL VALIDATION SUITES (V1, V2, V3, BOUNDARY) PASSED      
+ ALL VALIDATION SUITES (V1, V2, V3, BOUNDARY) PASSED
 ==========================================================

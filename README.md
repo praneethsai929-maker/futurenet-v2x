@@ -147,14 +147,14 @@ python3 contrib/futurenet-v2x/tools/generate_sumo_scenario.py --vehicles 100 --d
 ./ns3 run "example-grid --fcdTrace=/tmp/fcd-demo-100.xml --numRsus=4 --simTime=10.0 --tracePrefix=demo-run"
 ```
 
-### Empirical Demonstration Results (112 Vehicles, 4 RSUs, 10.0s Duration)
+### Empirical Demonstration Results (112 Vehicles, 4 RSUs, 10.0s Duration, IEEE 802.11p)
 - **Packets Transmitted**: **10,516 packets** (5,258 V2I unicast, 5,258 V2V broadcast)
-- **Packets Received**: **29,559 packets** (1,494 V2I unicast, 28,065 V2V broadcast fan-out)
-- **V2I Packet Delivery Ratio (PDR)**: **28.41%** (3,764 lost due to vehicle propagation range boundaries)
-- **Average One-Way Delay**: **0.56 ms**
+- **Packets Received**: **29,529 packets** (1,492 V2I unicast, 28,037 V2V broadcast fan-out)
+- **V2I Packet Delivery Ratio (PDR)**: **28.38%** (3,766 lost due to vehicle propagation range boundaries)
+- **Average One-Way Delay**: **1.22 ms**
 - **Average Throughput**: **0.0240 Mbps**
-- **Sequence Gaps Tracked**: **250** gaps across active links during handovers and coverage transitions.
-- **Trace Output Deliverables**: `demo-run-mobility.csv`, `demo-run-network.csv`, `demo-run-common-events.csv`, `demo-run-flowmon.xml`.
+- **Sequence Gaps Tracked**: **416** gaps across active links during handovers and coverage transitions.
+- **Trace Output Deliverables**: `demo-run-mobility.csv`, `demo-run-network.csv`, `demo-run-common-events.csv`, `demo-run-flowmon.xml`. Clean representative slices (< 150 KB) committed under `doc/raw-validation-*` per guideline 14.3.
 
 ---
 

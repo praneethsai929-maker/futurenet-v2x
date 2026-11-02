@@ -6,7 +6,7 @@
 All module code lives entirely in `contrib/futurenet-v2x/`. No modifications or additions were made to core ns-3 source files (`src/`), fulfilling the modularity and non-intrusiveness mandate of Quality Gate QG-07 and ns-3 contrib conventions.
 
 ### 1.2 Mechanism / Policy Separation (Common Guidelines 4.6)
-Vehicle-to-Infrastructure (V2I) association and handover logic is strictly decoupled from the low-level wireless transmission pipeline via the `RsuSelectionPolicy` abstract interface. 
+Vehicle-to-Infrastructure (V2I) association and handover logic is strictly decoupled from the low-level wireless transmission pipeline via the `RsuSelectionPolicy` abstract interface.
 - The base class presents a pure virtual interface `Select(const RsuSelectionState& state)`.
 - The default implementation, `NearestRsuSelectionPolicy`, selects the geometrically closest RSU based on 3D Euclidean distance.
 - This design guarantees that downstream modules (e.g., M10 Agent, RL-based edge offloading, or QoS handover managers) can inject custom policies via `V2xScenarioHelper::SetRsuSelectionPolicy()` without altering the scenario orchestrator or Wi-Fi stack.
@@ -14,7 +14,7 @@ Vehicle-to-Infrastructure (V2I) association and handover logic is strictly decou
 ### 1.3 Complexity Analysis of Nearest-RSU Association: $\mathcal{O}(N \times R)$
 In vehicular deployments, active vehicles $N$ periodically determine their closest Roadside Unit among $R$ deployed infrastructure nodes. At each mobility sampling step:
 $$\text{Per-tick Complexity} = \mathcal{O}(N \times R)$$
-In real-world V2X deployments, $R$ is fixed and moderate ($R \in [1, 20]$), making the per-tick complexity strictly linear in active vehicle count: $\mathcal{O}(N)$. 
+In real-world V2X deployments, $R$ is fixed and moderate ($R \in [1, 20]$), making the per-tick complexity strictly linear in active vehicle count: $\mathcal{O}(N)$.
 
 In our benchmark tests with 112 vehicles and 4 RSUs:
 - Total distance calculations per 100 ms tick: $112 \times 4 = 448$ evaluations.
@@ -84,7 +84,7 @@ The automated validation suite (`tools/validate_v2x.py`) executes tests across s
 
 ```
 ==========================================================
- FutureNet M09 Multi-Criteria Validation Suite Run Log   
+ FutureNet M09 Multi-Criteria Validation Suite Run Log
 ==========================================================
  ns-3 Version : 3.46.1
  SUMO Version : Eclipse SUMO sumo 1.28.0
@@ -94,28 +94,34 @@ The automated validation suite (`tools/validate_v2x.py`) executes tests across s
 
 ### 4.1 V1: Spatial Ground-Truth Alignment
 - Evaluates coordinate alignment between ns-3 sampled node positions and SUMO ground truth.
-- **Results**: Verified **5,050 sampled points** across 112 trajectories against SUMO FCD records.
+- **Results**: Verified **2,852 sampled points** across vehicle trajectories against SUMO FCD records.
 - **Discrepancy**: Maximum spatial discrepancy = **0.000000 m** (Tolerance: $< 0.01$ m). **Status: PASS**.
 
 ### 4.2 V2: Kinematic Trend Validation
 - Evaluates continuous forward displacement and speed interpolation over time.
-- **Results**: Verified monotonic continuous forward movement across **112/112 vehicle trajectories**. **Status: PASS**.
+- **Results**: Verified monotonic continuous forward movement across **110/110 moving trajectories** (112 total vehicles). **Status: PASS**.
 
 ### 4.3 V3: Controlled Variation & Network Decoupling
-- Simulates identical mobility traces under two differing network configurations:
+- Simulates identical mobility traces under two differing network configurations over 8.0 seconds:
   - Config 1: 100 ms message interval
   - Config 2: 500 ms message interval
 - **Mobility Invariance**: Mobility CSV output is **100% byte-for-byte identical** between Config 1 and Config 2.
 - **Network Decoupling Metrics**:
-  - Config 1 (100 ms): $\text{Tx} = 5,258$, $\text{Rx} = 14,780$, $\text{V2I PDR} = 28.41\%$, $\text{Delay} = 0.56\text{ ms}$, $\text{Gaps} = 125$.
-  - Config 2 (500 ms): $\text{Tx} = 1,052$, $\text{Rx} = 2,956$, $\text{V2I PDR} = 28.42\%$, $\text{Delay} = 0.56\text{ ms}$, $\text{Gaps} = 25$.
+  - Config 1 (100 ms): $\text{Tx} = 6,896$ (V2I=3,448, V2V=3,448), $\text{Rx} = 15,901$ (V2I=1,020, V2V=14,881), $\text{V2I PDR} = 29.58\%$ ($\text{Lost} = 2,428$), $\text{Delay} = 1.12\text{ ms}$, $\text{Total Loss Gaps} = 105$.
+  - Config 2 (500 ms): $\text{Tx} = 1,456$ (V2I=728, V2V=728), $\text{Rx} = 3,434$ (V2I=220, V2V=3,214), $\text{V2I PDR} = 30.22\%$ ($\text{Lost} = 508$), $\text{Delay} = 3.29\text{ ms}$, $\text{Total Loss Gaps} = 6$.
 - **Status: PASS**.
 
-### 4.4 V4: Boundary & Scale Extreme Cases
-1. **High-Frequency Sampling** (`MobilityStep = 10 ms`, 100 Hz): Successfully generated 1,120 telemetry records safely.
-2. **Sparse Sampling** (`MobilityStep = 2000 ms`, 0.5 Hz): Successfully generated sparse records without interpolation error.
+### 4.4 V3.1: Controlled Variation & TxPower Sweep (Coverage Sanity)
+- Evaluates transmission power sensitivity on the 112-vehicle topology:
+  - Config A (21.5 dBm): $\text{Tx} = 1,336$, $\text{Rx} = 400$, $\text{V2I PDR} = 29.94\%$
+  - Config B (30.0 dBm): $\text{Tx} = 1,336$, $\text{Rx} = 966$, $\text{V2I PDR} = 72.31\%$
+- **Range Loss Validation**: Confirms the physical wireless range model: increasing transmit power expands coverage area, raising V2I PDR from $29.94\%$ to $72.31\%$ while mobility records remain 100% identical. **Status: PASS**.
+
+### 4.5 V4: Boundary & Scale Extreme Cases
+1. **High-Frequency Sampling** (`MobilityStep = 10 ms`, 100 Hz): Successfully generated 613 telemetry records safely.
+2. **Sparse Sampling** (`MobilityStep = 2000 ms`, 0.5 Hz): Successfully generated 55 sparse records without interpolation error.
 3. **Zero RSUs** (`NumRsus = 0`): Pure ad-hoc V2V broadcast executed without null pointer exceptions.
-4. **Scale Boundary** (100+ vehicles): Completed safely with over 5,000 mobility records. **Status: PASS**.
+4. **Scale Boundary** (100+ vehicles): Completed safely with 526 mobility records. **Status: PASS**.
 
 ---
 
@@ -128,11 +134,12 @@ The full-scale benchmark scenario evaluates 112 vehicles and 4 RSUs over a 10.0-
 
 ### Empirical Network Performance
 - **Total Packets Transmitted**: **10,516 packets** (5,258 V2I unicast, 5,258 V2V broadcast)
-- **Total Packets Received**: **29,559 packets** (1,494 V2I unicast, 28,065 V2V broadcast fan-out)
-- **V2I Packet Delivery Ratio (PDR)**: **28.41%** (3,764 lost due to vehicle positions outside 200 m RSU coverage range)
-- **Average One-Way Delay**: **0.56 ms**
+- **Total Packets Received**: **29,529 packets** (1,492 V2I unicast, 28,037 V2V broadcast fan-out)
+- **V2I Packet Delivery Ratio (PDR)**: **28.38%** (3,766 lost due to vehicle positions outside 200 m RSU coverage range)
+- **Average One-Way Delay**: **1.22 ms**
 - **Average Throughput**: **0.0240 Mbps**
-- **Total Sequence Gaps**: **250** gaps across link boundary transitions.
+- **Total Sequence Gaps**: **416** gaps across link boundary transitions.
+- **Trace Output Deliverables**: Representative trimmed samples (~45–80 KB) committed under `doc/raw-validation-*` per guideline 14.3. The full trace is generated on-demand via `tools/validate_v2x.py`.
 
 ---
 
