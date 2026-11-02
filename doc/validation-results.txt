@@ -1,0 +1,31 @@
+==========================================================
+ FutureNet M09 Multi-Criteria Validation Suite Run Log
+==========================================================
+ Timestamp    : 2026-11-02T12:13:34.830973
+ ns-3 Version : 3.46.1
+ SUMO Version : SUMO 1.18+ (FCD XML Schema v1_0 compliant)
+ Git Commit   : d281336bdc8db7624b8f46d25ab210cb40992b04
+ Run Number   : 1
+ RNG Seed     : Default deterministic (AssignStreams tested)
+==========================================================
+
+Command Line: ./ns3 run 'example-grid --fcdTrace=/Users/tapasi/Downloads/ns-allinone-3.46.1/ns-3.46.1/contrib/futurenet-v2x/test/data/fcd-small.xml --simTime=2.5 --tracePrefix=val-out'
+Verified 13 sampled points against SUMO ground truth.
+Maximum spatial discrepancy: 0.000000 m (Tolerance: < 0.01 m)
+>>> PASS: Validation V1 (Spatial Alignment)
+Verified continuous forward kinematics across 3/3 trajectories.
+>>> PASS: Validation V2 (Kinematic Trend)
+Verified: Mobility CSV is 100% BYTE-FOR-BYTE IDENTICAL across differing network configurations.
+Verified: Network telemetry reflects differing message rates (100ms cfg: 153 lines, 500ms cfg: 34 lines).
+>>> PASS: Validation V3 (Controlled Variation & Network Decoupling)
+Command Line: ./ns3 run 'example-grid --fcdTrace=/Users/tapasi/Downloads/ns-allinone-3.46.1/ns-3.46.1/contrib/futurenet-v2x/test/data/fcd-small.xml --mobilityStep=10 --simTime=1.0 --tracePrefix=bound-step10'
+Verified: High-rate sampling (mobilityStep=10ms, 100Hz) generated 153 telemetry records safely.
+Command Line: ./ns3 run 'example-grid --fcdTrace=/Users/tapasi/Downloads/ns-allinone-3.46.1/ns-3.46.1/contrib/futurenet-v2x/test/data/fcd-small.xml --mobilityStep=2000 --simTime=3.0 --tracePrefix=bound-step2000'
+Verified: Sparse sampling (mobilityStep=2000ms, 0.5Hz) generated 7 telemetry records safely.
+Command Line: ./ns3 run 'example-grid --fcdTrace=/Users/tapasi/Downloads/ns-allinone-3.46.1/ns-3.46.1/contrib/futurenet-v2x/test/data/fcd-small.xml --numRsus=0 --simTime=1.0 --tracePrefix=bound-norsu'
+Verified: Zero RSU topology (numRsus=0) operates pure V2V ad-hoc gracefully without errors.
+>>> PASS: Boundary & Extreme Cases Validation
+
+==========================================================
+ ALL VALIDATION SUITES (V1, V2, V3, BOUNDARY) PASSED
+==========================================================
