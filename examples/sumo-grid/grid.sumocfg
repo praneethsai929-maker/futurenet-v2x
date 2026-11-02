@@ -6,8 +6,8 @@
     </input>
     <time>
         <begin value="0"/>
-        <end value="15"/>
-        <step-length value="0.5"/>
+        <end value="30"/>
+        <step-length value="0.2"/>
     </time>
     <output>
         <fcd-output value="grid-fcd.xml"/>

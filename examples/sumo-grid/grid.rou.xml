@@ -3,20 +3,20 @@
     <vType id="car" accel="2.6" decel="4.5" sigma="0.5" length="5" maxSpeed="15"/>
     <route id="route_0" edges="edge_0"/>
     <vehicle id="veh00" type="car" route="route_0" depart="0.00"/>
-    <vehicle id="veh01" type="car" route="route_0" depart="0.50"/>
-    <vehicle id="veh02" type="car" route="route_0" depart="1.00"/>
-    <vehicle id="veh03" type="car" route="route_0" depart="1.50"/>
-    <vehicle id="veh04" type="car" route="route_0" depart="2.00"/>
-    <vehicle id="veh05" type="car" route="route_0" depart="2.50"/>
-    <vehicle id="veh06" type="car" route="route_0" depart="3.00"/>
-    <vehicle id="veh07" type="car" route="route_0" depart="3.50"/>
-    <vehicle id="veh08" type="car" route="route_0" depart="4.00"/>
-    <vehicle id="veh09" type="car" route="route_0" depart="4.50"/>
-    <vehicle id="veh10" type="car" route="route_0" depart="5.00"/>
-    <vehicle id="veh11" type="car" route="route_0" depart="5.50"/>
-    <vehicle id="veh12" type="car" route="route_0" depart="6.00"/>
-    <vehicle id="veh13" type="car" route="route_0" depart="6.50"/>
-    <vehicle id="veh14" type="car" route="route_0" depart="7.00"/>
-    <vehicle id="veh15" type="car" route="route_0" depart="7.50"/>
+    <vehicle id="veh01" type="car" route="route_0" depart="0.40"/>
+    <vehicle id="veh02" type="car" route="route_0" depart="0.80"/>
+    <vehicle id="veh03" type="car" route="route_0" depart="1.20"/>
+    <vehicle id="veh04" type="car" route="route_0" depart="1.60"/>
+    <vehicle id="veh05" type="car" route="route_0" depart="2.00"/>
+    <vehicle id="veh06" type="car" route="route_0" depart="2.40"/>
+    <vehicle id="veh07" type="car" route="route_0" depart="2.80"/>
+    <vehicle id="veh08" type="car" route="route_0" depart="3.20"/>
+    <vehicle id="veh09" type="car" route="route_0" depart="3.60"/>
+    <vehicle id="veh10" type="car" route="route_0" depart="4.00"/>
+    <vehicle id="veh11" type="car" route="route_0" depart="4.40"/>
+    <vehicle id="veh12" type="car" route="route_0" depart="4.80"/>
+    <vehicle id="veh13" type="car" route="route_0" depart="5.20"/>
+    <vehicle id="veh14" type="car" route="route_0" depart="5.60"/>
+    <vehicle id="veh15" type="car" route="route_0" depart="6.00"/>
 </routes>
 
