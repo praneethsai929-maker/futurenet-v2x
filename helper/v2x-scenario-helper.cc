@@ -837,23 +837,21 @@ V2xScenarioHelper::LogVehicleDeactivated(std::string vehicleId, uint32_t nodeId)
         m_vehicleV2vSockets.erase(vehicleId);
     }
 
-    // Turn off radio and stop applications on the deactivated node
+    // Disable applications and sockets on the deactivated node
     if (m_mapper)
     {
         Ptr<Node> node = m_mapper->GetNode(vehicleId);
         if (node)
         {
-            for (uint32_t i = 0; i < node->GetNDevices(); ++i)
-            {
-                Ptr<WifiNetDevice> wifiDev = DynamicCast<WifiNetDevice>(node->GetDevice(i));
-                if (wifiDev && wifiDev->GetPhy())
-                {
-                    wifiDev->GetPhy()->SetOffMode();
-                }
-            }
             for (uint32_t a = 0; a < node->GetNApplications(); ++a)
             {
                 node->GetApplication(a)->SetStopTime(Simulator::Now());
+            }
+            // Move deactivated node outside wireless communication range so it leaves the channel
+            Ptr<MobilityModel> mob = node->GetObject<MobilityModel>();
+            if (mob)
+            {
+                mob->SetPosition(Vector(-100000.0, -100000.0, -1000.0));
             }
         }
     }
