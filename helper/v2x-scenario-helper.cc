@@ -837,25 +837,7 @@ V2xScenarioHelper::LogVehicleDeactivated(std::string vehicleId, uint32_t nodeId)
         m_vehicleV2vSockets.erase(vehicleId);
     }
 
-    // Disable applications and sockets on the deactivated node
-    if (m_mapper)
-    {
-        Ptr<Node> node = m_mapper->GetNode(vehicleId);
-        if (node)
-        {
-            for (uint32_t a = 0; a < node->GetNApplications(); ++a)
-            {
-                node->GetApplication(a)->SetStopTime(Simulator::Now());
-            }
-            // Move deactivated node outside wireless communication range so it leaves the channel
-            Ptr<MobilityModel> mob = node->GetObject<MobilityModel>();
-            if (mob)
-            {
-                mob->SetPosition(Vector(-100000.0, -100000.0, -1000.0));
-            }
-        }
-    }
-
+    // Capture final arrival position and speed prior to relocating off-channel
     double now = Simulator::Now().GetSeconds();
     Vector pos(0.0, 0.0, 0.0);
     double speed = 0.0;
@@ -888,6 +870,24 @@ V2xScenarioHelper::LogVehicleDeactivated(std::string vehicleId, uint32_t nodeId)
                           << now << "," << vehicleId << "," << nodeId << ","
                           << pos.x << "," << pos.y << "," << pos.z << ","
                           << std::fixed << std::setprecision(2) << speed << ",0\n";
+        }
+    }
+
+    // Disable applications and move deactivated node outside wireless range to exit channel
+    if (m_mapper)
+    {
+        Ptr<Node> node = m_mapper->GetNode(vehicleId);
+        if (node)
+        {
+            for (uint32_t a = 0; a < node->GetNApplications(); ++a)
+            {
+                node->GetApplication(a)->SetStopTime(Simulator::Now());
+            }
+            Ptr<MobilityModel> mob = node->GetObject<MobilityModel>();
+            if (mob)
+            {
+                mob->SetPosition(Vector(-100000.0, -100000.0, -1000.0));
+            }
         }
     }
 }

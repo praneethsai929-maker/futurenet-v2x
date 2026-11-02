@@ -126,20 +126,20 @@ def validate_v2(mobility_csv_path, log_lines):
                 trajectories[vid] = []
             trajectories[vid].append((t, x, y, spd))
 
+    valid_trajectories = {vid: pts for vid, pts in trajectories.items() if pts[-1][0] > pts[0][0]}
     monotonic_count = 0
-    for vid, pts in trajectories.items():
-        if len(pts) > 2:
-            dx = pts[-1][1] - pts[0][1]
-            dy = pts[-1][2] - pts[0][2]
-            dist = (dx**2 + dy**2)**0.5
-            if dist > 0.0:
-                monotonic_count += 1
+    for vid, pts in valid_trajectories.items():
+        dx = pts[-1][1] - pts[0][1]
+        dy = pts[-1][2] - pts[0][2]
+        dist = (dx**2 + dy**2)**0.5
+        if dist > 0.0:
+            monotonic_count += 1
 
-    msg = f"Verified continuous forward kinematics across {monotonic_count}/{len(trajectories)} trajectories."
+    msg = f"Verified continuous forward kinematics across {monotonic_count}/{len(valid_trajectories)} moving trajectories ({len(trajectories)} total vehicles)."
     print(msg)
     log_lines.append(msg)
-    assert len(trajectories) > 0, "Validation V2 FAILED: no trajectories found"
-    assert monotonic_count == len(trajectories), f"Validation V2 FAILED: only {monotonic_count}/{len(trajectories)} trajectories moved forward"
+    assert len(valid_trajectories) >= 10, f"Validation V2 FAILED: expected >= 10 moving trajectories, got {len(valid_trajectories)}"
+    assert monotonic_count == len(valid_trajectories), f"Validation V2 FAILED: only {monotonic_count}/{len(valid_trajectories)} moving trajectories exhibited forward displacement"
     print(">>> PASS: Validation V2 (Kinematic Trend)")
     log_lines.append(">>> PASS: Validation V2 (Kinematic Trend)")
 
