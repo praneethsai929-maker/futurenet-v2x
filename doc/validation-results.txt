@@ -1,34 +1,41 @@
 ==========================================================
- FutureNet M09 Multi-Criteria Validation Suite Run Log
+ FutureNet M09 Multi-Criteria Validation Suite Run Log   
 ==========================================================
- Timestamp    : 2026-11-02T12:33:41.648028
+ Timestamp    : 2026-11-02T13:00:57.070943
  ns-3 Version : 3.46.1
  SUMO Version : Eclipse SUMO sumo 1.28.0
- Git Commit   : 479dd4fc52bcedb4c106933b31a90971ad2de1fe
+ Git Commit   : 5f9b5d3082838375ca994bc2d5cf48dbf98d09db
  Run Number   : 1
  RNG Seed     : Default deterministic (AssignStreams tested)
 ==========================================================
 
-Command Line: ./ns3 run 'example-grid --fcdTrace=/Users/tapasi/Downloads/ns-allinone-3.46.1/ns-3.46.1/contrib/futurenet-v2x/test/data/fcd-small.xml --simTime=2.5 --tracePrefix=val-out'
-Verified 13 sampled points against SUMO ground truth.
+Command Line: ./ns3 run 'example-grid --fcdTrace=/tmp/fcd-demo-100.xml --numRsus=4 --simTime=10.0 --tracePrefix=val-out'
+100-Vehicle 4-RSU Demo Simulation Metrics:
+  Total Packets Tx : 10516 (V2I=5258, V2V=5258)
+  Total Packets Rx : 29559 (V2I=1494, V2V=28065 fan-out)
+  V2I Delivery PDR : 28.41% (Lost packets = 3764)
+  Average Delay    : 0.56 ms
+  Average Throughp : 0.0240 Mbps
+  Total Seq Gaps   : 250
+Verified 2852 sampled points against SUMO ground truth.
 Maximum spatial discrepancy: 0.000000 m (Tolerance: < 0.01 m)
 >>> PASS: Validation V1 (Spatial Alignment)
-Verified continuous forward kinematics across 3/3 trajectories.
+Verified continuous forward kinematics across 110/110 moving trajectories (112 total vehicles).
 >>> PASS: Validation V2 (Kinematic Trend)
 Verified: Mobility CSV is 100% BYTE-FOR-BYTE IDENTICAL across differing network configurations.
-Config 1 (100ms interval): Tx=80 packets, Rx=69 packets, AvgDelay=0.44 ms, AvgThroughput=0.0240 Mbps, TotalLossGaps=0
-Config 2 (500ms interval): Tx=16 packets, Rx=14 packets, AvgDelay=0.98 ms, AvgThroughput=0.0048 Mbps, TotalLossGaps=0
+Config 1 (100ms interval): Tx=2672 (V2I=1336, V2V=1336), Rx=4410 (V2I=400, V2V=4010), V2I PDR=29.94% (Lost=936), AvgDelay=0.54 ms, AvgThroughput=0.0240 Mbps, TotalLossGaps=0
+Config 2 (500ms interval): Tx=580 (V2I=290, V2V=290), Rx=964 (V2I=86, V2V=878), V2I PDR=29.66% (Lost=204), AvgDelay=0.59 ms, AvgThroughput=0.0048 Mbps, TotalLossGaps=0
 >>> PASS: Validation V3 (Controlled Variation & Network Decoupling)
-Command Line: ./ns3 run 'example-grid --fcdTrace=/Users/tapasi/Downloads/ns-allinone-3.46.1/ns-3.46.1/contrib/futurenet-v2x/test/data/fcd-small.xml --mobilityStep=10 --simTime=1.0 --tracePrefix=bound-step10'
-Verified: High-rate sampling (mobilityStep=10ms, 100Hz) generated 153 telemetry records safely.
-Command Line: ./ns3 run 'example-grid --fcdTrace=/Users/tapasi/Downloads/ns-allinone-3.46.1/ns-3.46.1/contrib/futurenet-v2x/test/data/fcd-small.xml --mobilityStep=2000 --simTime=3.0 --tracePrefix=bound-step2000'
-Verified: Sparse sampling (mobilityStep=2000ms, 0.5Hz) generated 7 telemetry records safely.
-Command Line: ./ns3 run 'example-grid --fcdTrace=/Users/tapasi/Downloads/ns-allinone-3.46.1/ns-3.46.1/contrib/futurenet-v2x/test/data/fcd-small.xml --numRsus=0 --simTime=1.0 --tracePrefix=bound-norsu'
+Command Line: ./ns3 run 'example-grid --fcdTrace=/tmp/fcd-demo-100.xml --mobilityStep=10 --simTime=1.0 --tracePrefix=bound-step10'
+Verified: High-rate sampling (mobilityStep=10ms, 100Hz) generated 613 telemetry records safely.
+Command Line: ./ns3 run 'example-grid --fcdTrace=/tmp/fcd-demo-100.xml --mobilityStep=2000 --simTime=3.0 --tracePrefix=bound-step2000'
+Verified: Sparse sampling (mobilityStep=2000ms, 0.5Hz) generated 55 telemetry records safely.
+Command Line: ./ns3 run 'example-grid --fcdTrace=/tmp/fcd-demo-100.xml --numRsus=0 --simTime=1.0 --tracePrefix=bound-norsu'
 Verified: Zero RSU topology (numRsus=0) operates pure V2V ad-hoc gracefully without errors.
-Command Line: ./ns3 run 'example-grid --fcdTrace=/tmp/fcd-bound-100.xml --numRsus=4 --simTime=3.0 --tracePrefix=bound-100v'
-Verified: 100-vehicle scale boundary completed safely with 1276 mobility records.
+Command Line: ./ns3 run 'example-grid --fcdTrace=/tmp/fcd-demo-100.xml --numRsus=4 --simTime=3.0 --tracePrefix=bound-100v'
+Verified: 100-vehicle scale boundary completed safely with 526 mobility records.
 >>> PASS: Boundary & Extreme Cases Validation
 
 ==========================================================
- ALL VALIDATION SUITES (V1, V2, V3, BOUNDARY) PASSED
+ ALL VALIDATION SUITES (V1, V2, V3, BOUNDARY) PASSED      
 ==========================================================
