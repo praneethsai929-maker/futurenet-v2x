@@ -16,9 +16,11 @@ CMakeFiles/
 *.tr
 *.csv
 !test/data/*.csv
+!doc/raw-validation*.csv
 
 # Large trace files (Guidelines 8.3 & 14.3: do not commit large generated FCD traces)
 *.fcd.xml
 fcd-large*.xml
 fcd-demo*.xml
 !test/data/fcd-small.xml
+!examples/sumo-grid/grid-fcd.xml
