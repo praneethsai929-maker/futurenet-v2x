@@ -13,18 +13,30 @@ import sys
 import tempfile
 
 def find_sumo_tool(tool_name):
-    """Finds a SUMO binary or python tool in system PATH or python environment."""
+    """Finds a SUMO binary or python tool in system PATH or SUMO_HOME environment."""
     # 1. System PATH
     p = shutil.which(tool_name)
     if p:
         return p
 
-    # 2. User Python bin
-    user_bin = os.path.expanduser(f"~/Library/Python/3.14/bin/{tool_name}")
-    if os.path.exists(user_bin):
-        return user_bin
+    # 2. Python environment bin directory
+    py_bin = os.path.join(os.path.dirname(sys.executable), tool_name)
+    if os.path.exists(py_bin):
+        return py_bin
 
-    # 3. SUMO_HOME
+    # 3. SUMO_HOME environment variable
+    sumo_home = os.environ.get("SUMO_HOME")
+    if sumo_home and os.path.isdir(sumo_home):
+        if tool_name.endswith(".py"):
+            tool_path = os.path.join(sumo_home, "tools", tool_name)
+            if os.path.exists(tool_path):
+                return tool_path
+        else:
+            bin_path = os.path.join(sumo_home, "bin", tool_name)
+            if os.path.exists(bin_path):
+                return bin_path
+
+    # 4. Python sumo package if installed
     try:
         import sumo
         sumo_home = sumo.SUMO_HOME

@@ -280,7 +280,7 @@ V2xScenarioHelper::InstallExampleNetworking()
     NS_LOG_FUNCTION(this);
 
     WifiHelper wifi;
-    wifi.SetStandard(WIFI_STANDARD_80211a);
+    wifi.SetStandard(WIFI_STANDARD_80211p);
 
     YansWifiPhyHelper wifiPhy;
     wifiPhy.Set("TxPowerStart", DoubleValue(m_txPowerDbm));

@@ -11,13 +11,18 @@ import subprocess
 import sys
 
 def find_netconvert():
-    """Locate netconvert binary in PATH, user Python bin, or SUMO_HOME."""
+    """Locate netconvert binary in PATH, Python bin, or SUMO_HOME."""
     p = shutil.which("netconvert")
     if p:
         return p
-    user_bin = os.path.expanduser("~/Library/Python/3.14/bin/netconvert")
-    if os.path.exists(user_bin):
-        return user_bin
+    py_bin = os.path.join(os.path.dirname(sys.executable), "netconvert")
+    if os.path.exists(py_bin):
+        return py_bin
+    sumo_home = os.environ.get("SUMO_HOME")
+    if sumo_home and os.path.isdir(sumo_home):
+        bin_p = os.path.join(sumo_home, "bin", "netconvert")
+        if os.path.exists(bin_p):
+            return bin_p
     try:
         import sumo
         sumo_home = sumo.SUMO_HOME

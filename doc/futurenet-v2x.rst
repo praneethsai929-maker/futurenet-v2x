@@ -1,100 +1,124 @@
-Example Module Documentation
-============================
+FutureNet V2X Mobility Integration Module
+=========================================
 
 .. include:: replace.txt
 .. highlight:: cpp
 
-.. heading hierarchy:
-   ============= Module Name
-   ------------- Section (#.#)
-   ~~~~~~~~~~~~~ Subsection (#.#.#)
+The ``futurenet-v2x`` module for |ns3| provides comprehensive vehicular mobility and network simulation capabilities with offline Floating Car Data (FCD) trajectory ingestion from Eclipse SUMO, deterministic vehicle-to-node mapping, Roadside Unit (RSU) infrastructure, and a decoupled mechanism/policy architecture for Vehicle-to-Infrastructure (V2I) association.
 
-This is the outline for adding new module documentation to |ns3|.
-See ``src/lr-wpan/doc/lr-wpan.rst`` for an example.
-
-This first part is for describing what the model is trying to
-accomplish. General descriptions and design, overview of the project
-goes in this part without the need of any subsections. A visual summary
-is also recommended.
-
-For consistency (italicized formatting), please use |ns3| to refer to
-ns-3 in the documentation (and likewise, |ns2| for ns-2).  These macros
-are defined in the file ``replace.txt``.
-
-Detailed |ns3| Sphinx documentation guidelines can be found `here <https://www.nsnam.org/docs/contributing/html/models.html>`_
-
-
-The source code for the new module lives in the directory ``contrib/futurenet-v2x``.
-
+The source code for this module lives entirely in ``contrib/futurenet-v2x`` and makes no modifications to core |ns3| source code (satisfying Quality Gate QG-07).
 
 Scope and Limitations
 ---------------------
 
-This is should be your first section. Please use it to list the scope and
-limitations. What can the model do?  What can it not do? Be brief and concise.
+Scope
+~~~~~
+* Ingestion of microscopic vehicular mobility traces exported by Eclipse SUMO in Floating Car Data (FCD) XML format.
+* Dynamic vehicle node lifecycle management with automated departure (activation) and arrival (deactivation) scheduling.
+* Safe channel exit ensuring deactivated vehicles cease transmission and reception without disrupting active MAC/PHY queues.
+* Deployment of stationary Roadside Units (RSUs) via explicit coordinates, regular grid spacing, or road junction coordinates.
+* Decoupled V2I association policy interface allowing interchangeable algorithmic policies (e.g. nearest-RSU, QoS, load-balancing).
+* High-performance periodic V2V ad-hoc broadcast (port 9998) and unicast V2I (port 9999) vehicular communications over IEEE 802.11p.
+* Comprehensive three-tier CSV telemetry logging conforming to FutureNet Common Guidelines.
 
-Section A
----------
+Limitations
+~~~~~~~~~~~
+* **Offline Trajectory Scope**: Mobility is ingested from pre-computed SUMO FCD traces into |ns3| ``WaypointMobilityModel``. Real-time bidirectional physics feedback into vehicle driver behavior is outside the scope of M09 (a live TraCI adapter prototype is provided in ``tools/live_traci_adapter.py``).
+* **Propagation Range Boundaries**: Vehicles traveling beyond the radio communication range of RSUs experience physical wireless propagation loss, as naturally modeled by the wireless channel.
+* **Isotropic Antennas**: Transceivers use isotropic antenna models by default; directional antenna patterns can be added via standard |ns3| antenna helpers.
 
-Free form. Your second section of your documentation and its subsections goes here.
-The documentation can contain any number of sections but be careful to not use
-more than two levels in subsections.
+Model Description
+-----------------
 
-Section B
----------
+The model is structured into modular components:
 
-Free form. The last section of your documentation with content goes here.
+1. **SumoFcdParser**: An :math:`\mathcal{O}(N)` stream XML parser reading SUMO FCD output with coordinate scaling (``CoordinateScale``) and offsets (``CoordinateOffsetX``, ``CoordinateOffsetY``).
+2. **VehicleNodeMapper**: Maintains a deterministic, reproducible bidirectional map between SUMO vehicle ID strings and |ns3| node IDs.
+3. **V2xMobilityImporter**: Translates parsed waypoints into |ns3| ``WaypointMobilityModel`` instances with ``InitialPositionIsWaypoint=true``, managing departure and arrival events.
+4. **RsuPlacementHelper**: Deploys RSU infrastructure nodes with mast height elevation.
+5. **RsuSelectionPolicy**: Abstract policy interface with default ``NearestRsuSelectionPolicy`` calculating Euclidean proximity in :math:`\mathcal{O}(N \times R)` time without quadratic neighbor scans.
+6. **V2xScenarioHelper**: High-level orchestrator connecting parser, mapper, mobility, 802.11p networking, and telemetry tracing.
 
 Usage
 -----
 
-A brief description of the module usage goes here. This section must be present.
-
 Helpers
 ~~~~~~~
 
-A subsection with a description of the helpers used by the model goes here. Snippets of code are
-preferable when describing the helpers usage. This subsection must be present.
-If the model CANNOT provide helpers write "Not applicable".
+The primary entry point is ``V2xScenarioHelper``:
+
+.. code-block:: cpp
+
+   Ptr<V2xScenarioHelper> helper = CreateObject<V2xScenarioHelper>();
+   helper->SetAttribute("MobilityStep", TimeValue(MilliSeconds(100)));
+   helper->SetAttribute("V2xMessageInterval", TimeValue(MilliSeconds(100)));
+   helper->SetAttribute("TxPower", DoubleValue(21.5));
+   helper->SetRsuGridPlacement(50.0, 50.0, 200.0, 200.0, 2);
+
+   helper->LoadFcd("path/to/trace.fcd.xml");
+   NodeContainer vehicles = helper->CreateVehicleNodes();
+   NodeContainer rsus = helper->CreateRsuNodes(4);
+
+   helper->InstallMobility();
+   helper->InstallExampleNetworking();
+   helper->EnableTracing("output-prefix");
+
+   Simulator::Stop(Seconds(10.0));
+   Simulator::Run();
+   Simulator::Destroy();
 
 Attributes
 ~~~~~~~~~~
 
-A subsection with a list of attributes used by the module, each attribute should include a small
-description. This subsection must be present.
-If the model CANNOT provide attributes write "Not applicable".
+* **MobilityStep**: Kinematic position sampling interval (supported: 10 ms to 2 s; default: 100 ms).
+* **NumRsus**: Number of roadside unit infrastructure nodes to instantiate (default: 4).
+* **CoordinateScale**: Scale multiplier applied to raw SUMO coordinates (default: 1.0).
+* **CoordinateOffsetX**: Offset in meters added to vehicle X coordinates (default: 0.0 m).
+* **CoordinateOffsetY**: Offset in meters added to vehicle Y coordinates (default: 0.0 m).
+* **V2xMessageBytes**: Application payload size for periodic V2X messages (default: 300 bytes).
+* **V2xMessageInterval**: Transmission period between periodic beacons (default: 100 ms).
+* **ApplicationStartJitter**: Maximum uniform random delay to desynchronize initial broadcasts (default: 100 ms).
+* **TxPower**: IEEE 802.11p transmission power in dBm (default: 21.5 dBm).
+* **RsuHeight**: Mast elevation height for RSU nodes (default: 5.0 m).
 
 Traces
 ~~~~~~
 
-A subsection with a list of the source traces used by the module, each trace should include a small
-description. This subsection must be present.
-If the model CANNOT provide traces write "Not applicable".
+* **VehicleActivated**: Fired when a vehicle enters the road network (``vehicleId``, ``nodeId``).
+* **VehicleDeactivated**: Fired when a vehicle completes its trajectory and exits (``vehicleId``, ``nodeId``).
+* **VehiclePosition**: Fired periodically at every ``MobilityStep`` with position and instantaneous speed.
 
 Examples and Tests
 ------------------
 
-A brief description of each example and test present in the model must be here.
-Include both the name of the example file and a brief description of the example.
-This section must be present.
+Examples
+~~~~~~~~
+
+* **example-grid** (Deliverable D4 ``example-basic``): Baseline grid scenario with 16 vehicles and 4 RSUs. Demonstrates periodic V2V/V2I beaconing and 3-tier CSV generation.
+* **example-map** (Deliverable D4 ``example-advanced``): Advanced scenario ingesting arbitrary FCD traces without code modifications (AC-01), with FlowMonitor serialization and controlled variation.
+
+Tests
+~~~~~
+
+The module includes 16 automated unit tests covering all functional requirements:
+
+.. code-block:: bash
+
+   ./test.py -s futurenet-v2x
 
 Validation
 ----------
 
-Describe how the model has been tested/validated.  What tests run in the
-test suite?  How much API and code is covered by the tests?
+The multi-criteria validation suite (``tools/validate_v2x.py``) verifies:
 
-This section must be present. Write ``No formal validation has been made`` if your
-model do not contain validations.
+1. **V1 (Spatial Alignment)**: Validates sampled positions against SUMO ground truth (0.000000 m error observed, < 0.01 m tolerance).
+2. **V2 (Kinematic Trend)**: Verifies continuous forward displacement across all moving trajectories.
+3. **V3 (Controlled Variation)**: Verifies 100% byte-for-byte identical mobility CSV across differing packet intervals (100 ms vs 500 ms) while network metrics decouple.
+4. **V4 (Boundary & Extreme Cases)**: Evaluates high sampling rates (10 ms / 100 Hz), sparse sampling (2000 ms), 0-RSU ad-hoc mode, and 100+ vehicle scale.
 
 References
 ----------
 
-The reference material used in the construction of the model.
-This section must be the last section and must be present.
-Use numbers for the index not names when listing the references. When possible, include the link of the referenced material.
-
-Example:
-
-[`1 <https://ieeexplore.ieee.org/document/6012487>`_] IEEE Standard for Local and metropolitan area networks--Part 15.4: Low-Rate Wireless Personal Area Networks (LR-WPANs)," in IEEE Std 802.15.4-2011 (Revision of IEEE Std 802.15.4-2006) , vol., no., pp.1-314, 5 Sept. 2011, doi: 10.1109/IEEESTD.2011.6012487.
-
+1. IEEE Std 802.11p-2010: Wireless Access in Vehicular Environments (WAVE).
+2. Eclipse SUMO: Simulation of Urban MObility (https://eclipse.dev/sumo/).
+3. FutureNet M09 Software Requirements Specification (SRS).

@@ -11,6 +11,18 @@ using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE("ExampleGrid");
 
+static std::string
+TrimString(const std::string& s)
+{
+    auto start = s.find_first_not_of(" \t\r\n\"'");
+    if (start == std::string::npos)
+    {
+        return "";
+    }
+    auto end = s.find_last_not_of(" \t\r\n\"'");
+    return s.substr(start, end - start + 1);
+}
+
 static std::vector<Vector>
 ParseRsuPositions(const std::string& str)
 {
@@ -27,12 +39,22 @@ ParseRsuPositions(const std::string& str)
         std::string xStr, yStr, zStr;
         if (std::getline(pss, xStr, ',') && std::getline(pss, yStr, ','))
         {
+            xStr = TrimString(xStr);
+            yStr = TrimString(yStr);
+            if (xStr.empty() || yStr.empty())
+            {
+                continue;
+            }
             double x = std::stod(xStr);
             double y = std::stod(yStr);
             double z = 0.0;
             if (std::getline(pss, zStr, ','))
             {
-                z = std::stod(zStr);
+                zStr = TrimString(zStr);
+                if (!zStr.empty())
+                {
+                    z = std::stod(zStr);
+                }
             }
             res.push_back(Vector(x, y, z));
         }

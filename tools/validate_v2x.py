@@ -5,6 +5,7 @@ Executes:
   V1: Baseline / coordinate alignment validation (SUMO FCD vs ns-3 output)
   V2: Kinematic trend validation (speed and position over time)
   V3: Controlled variation (identical mobility under different network configs) & boundary tests.
+  V3.1: TxPower sweep verifying wireless coverage and range sensitivity.
 """
 
 import datetime
@@ -40,16 +41,33 @@ def get_ns3_version():
         return "3.46.1"
 
 def get_sumo_version():
-    try:
-        env = os.environ.copy()
-        user_bin = os.path.expanduser("~/Library/Python/3.14/bin")
-        if os.path.isdir(user_bin):
-            env["PATH"] = f"{user_bin}:{env.get('PATH', '')}"
-        res = subprocess.run("sumo --version", env=env, shell=True, capture_output=True, text=True)
-        if res.returncode == 0:
-            return res.stdout.split('\n')[0].strip()
-    except Exception:
-        pass
+    sumo_bin = shutil.which("sumo")
+    if not sumo_bin:
+        py_bin = os.path.join(os.path.dirname(sys.executable), "sumo")
+        if os.path.exists(py_bin):
+            sumo_bin = py_bin
+    if not sumo_bin:
+        sumo_home = os.environ.get("SUMO_HOME")
+        if sumo_home and os.path.isdir(sumo_home):
+            candidate = os.path.join(sumo_home, "bin", "sumo")
+            if os.path.exists(candidate):
+                sumo_bin = candidate
+    if not sumo_bin:
+        try:
+            import sumo
+            candidate = os.path.join(sumo.SUMO_HOME, "bin", "sumo")
+            if os.path.exists(candidate):
+                sumo_bin = candidate
+        except ImportError:
+            pass
+
+    if sumo_bin:
+        try:
+            res = subprocess.run([sumo_bin, "--version"], capture_output=True, text=True)
+            if res.returncode == 0:
+                return res.stdout.split('\n')[0].strip()
+        except Exception:
+            pass
     return "unknown"
 
 def ensure_demo_trace(base_dir, demo_path="/tmp/fcd-demo-100.xml"):
@@ -214,10 +232,10 @@ def analyze_network_csv(csv_path, flowmon_path=None):
 
 def validate_v3(trace_path, log_lines):
     print("\n--- [V3] Controlled Variation & Network Decoupling Validation ---")
-    # Run Config 1: 100ms message interval
-    run_cmd(f"./ns3 run 'example-map --simTime=5.0 --v2xInterval=100 --fcdTrace={trace_path} --tracePrefix=v3-cfg1'")
-    # Run Config 2: 500ms message interval
-    run_cmd(f"./ns3 run 'example-map --simTime=5.0 --v2xInterval=500 --fcdTrace={trace_path} --tracePrefix=v3-cfg2'")
+    # Run Config 1: 100ms message interval (simTime=8.0s)
+    run_cmd(f"./ns3 run 'example-map --simTime=8.0 --v2xInterval=100 --fcdTrace={trace_path} --tracePrefix=v3-cfg1'")
+    # Run Config 2: 500ms message interval (simTime=8.0s)
+    run_cmd(f"./ns3 run 'example-map --simTime=8.0 --v2xInterval=500 --fcdTrace={trace_path} --tracePrefix=v3-cfg2'")
 
     with open("v3-cfg1-mobility.csv", "r") as f1, open("v3-cfg2-mobility.csv", "r") as f2:
         m1 = f1.read()
@@ -256,6 +274,32 @@ def validate_v3(trace_path, log_lines):
     # Clean up v3 temp files
     for p in ["v3-cfg1-mobility.csv", "v3-cfg1-network.csv", "v3-cfg1-common-events.csv", "v3-cfg1-flowmon.xml",
               "v3-cfg2-mobility.csv", "v3-cfg2-network.csv", "v3-cfg2-common-events.csv", "v3-cfg2-flowmon.xml"]:
+        if os.path.exists(p):
+            os.remove(p)
+
+def validate_txpower_sweep(trace_path, log_lines):
+    print("\n--- [V3.1] Controlled Variation & TxPower Sweep (Coverage Sanity) ---")
+    run_cmd(f"./ns3 run 'example-grid --fcdTrace={trace_path} --txPower=21.5 --simTime=5.0 --tracePrefix=v3-tx21'")
+    run_cmd(f"./ns3 run 'example-grid --fcdTrace={trace_path} --txPower=30.0 --simTime=5.0 --tracePrefix=v3-tx30'")
+
+    with open("v3-tx21-mobility.csv", "r") as f1, open("v3-tx30-mobility.csv", "r") as f2:
+        assert f1.read() == f2.read(), "Validation TxPower FAILED: Mobility differed across TxPower configs!"
+
+    s1 = analyze_network_csv("v3-tx21-network.csv", "v3-tx21-flowmon.xml")
+    s2 = analyze_network_csv("v3-tx30-network.csv", "v3-tx30-flowmon.xml")
+
+    assert s2['v2i_pdr'] > s1['v2i_pdr'], "Validation TxPower FAILED: Higher TxPower must increase V2I PDR!"
+
+    msg1 = f"TxPower Sweep: 21.5 dBm -> PDR={s1['v2i_pdr']:.2f}% (Rx={s1['rx_v2i']}/{s1['tx_v2i']}) vs 30.0 dBm -> PDR={s2['v2i_pdr']:.2f}% (Rx={s2['rx_v2i']}/{s2['tx_v2i']})"
+    msg2 = f"Confirmed physical range loss model: increasing transmit power from 21.5 dBm to 30.0 dBm expands wireless range, increasing V2I PDR from {s1['v2i_pdr']:.2f}% to {s2['v2i_pdr']:.2f}% while mobility remains 100% identical."
+    print(msg1)
+    print(msg2)
+    log_lines.extend([msg1, msg2])
+    print(">>> PASS: Controlled Variation (TxPower / Range Sensitivity)")
+    log_lines.append(">>> PASS: Controlled Variation (TxPower / Range Sensitivity)")
+
+    for p in ["v3-tx21-mobility.csv", "v3-tx21-network.csv", "v3-tx21-common-events.csv", "v3-tx21-flowmon.xml",
+              "v3-tx30-mobility.csv", "v3-tx30-network.csv", "v3-tx30-common-events.csv", "v3-tx30-flowmon.xml"]:
         if os.path.exists(p):
             os.remove(p)
 
@@ -321,6 +365,14 @@ def validate_boundary_cases(fcd_path, log_lines, base_dir):
     print(">>> PASS: Boundary & Extreme Cases Validation")
     log_lines.append(">>> PASS: Boundary & Extreme Cases Validation")
 
+def save_trimmed_trace(src_path, dst_path, max_records=1500):
+    """Saves a trimmed representative slice conforming to guideline 14.3 (no large traces)."""
+    with open(src_path, 'r') as fin, open(dst_path, 'w') as fout:
+        for idx, line in enumerate(fin):
+            if idx >= max_records:
+                break
+            fout.write(line)
+
 if __name__ == "__main__":
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     doc_dir = os.path.join(base_dir, "doc")
@@ -363,12 +415,13 @@ if __name__ == "__main__":
     validate_v1(demo_trace, "val-out-mobility.csv", log_lines)
     validate_v2("val-out-mobility.csv", log_lines)
     validate_v3(demo_trace, log_lines)
+    validate_txpower_sweep(demo_trace, log_lines)
     validate_boundary_cases(demo_trace, log_lines, base_dir)
 
-    # Save raw validation outputs as permanent deliverables (D7)
-    shutil.copyfile("val-out-mobility.csv", os.path.join(doc_dir, "raw-validation-mobility.csv"))
-    shutil.copyfile("val-out-network.csv", os.path.join(doc_dir, "raw-validation-network.csv"))
-    shutil.copyfile("val-out-common-events.csv", os.path.join(doc_dir, "raw-validation-common-events.csv"))
+    # Save raw validation outputs as permanent deliverables (D7), trimmed to 1500 records per guideline 14.3
+    save_trimmed_trace("val-out-mobility.csv", os.path.join(doc_dir, "raw-validation-mobility.csv"), 1500)
+    save_trimmed_trace("val-out-network.csv", os.path.join(doc_dir, "raw-validation-network.csv"), 1500)
+    save_trimmed_trace("val-out-common-events.csv", os.path.join(doc_dir, "raw-validation-common-events.csv"), 1500)
     if os.path.exists("val-out-flowmon.xml"):
         shutil.copyfile("val-out-flowmon.xml", os.path.join(doc_dir, "raw-validation-flowmon.xml"))
 
